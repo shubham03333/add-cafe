@@ -1,11 +1,9 @@
-# TODO: Add Day Names to Sales Report Daily Breakdown
+# TODO List for CafeOrderSystem Improvements
 
-## Steps to Complete:
+- [x] Add clickable "Pending" orders count box in header to scroll order queue into view.
 
-1. [ ] Modify `src/components/SalesReport.tsx` to add day name column
-   - Update the daily breakdown section to include day names
-   - Use `new Date(day.date).toLocaleDateString('en-US', { weekday: 'long' })` for day names
-   - Adjust UI layout for the new column structure
-
-## Progress:
-- [ ] Step 1: Modify SalesReport.tsx
+Next steps:
+- Verify the UI behavior of the new clickable pending orders box.
+- Test smooth scrolling to order queue on click.
+- Check for any UI or accessibility improvements needed.
+- Address any user feedback or additional feature requests.

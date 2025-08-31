@@ -67,6 +67,8 @@ export interface Order {
   items: OrderItem[];
   total: number;
   status: 'pending' | 'preparing' | 'ready' | 'served' | 'cancelled';
+  payment_status: 'pending' | 'paid' | 'failed';
+  payment_mode?: 'cash' | 'online';
   order_time: string;
   updated_time?: string;
 }
@@ -81,4 +83,5 @@ export interface UpdateOrderRequest {
   items?: OrderItem[];
   total?: number;
   status?: Order['status'];
+  payment_status?: Order['payment_status'];
 }

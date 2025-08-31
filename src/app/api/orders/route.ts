@@ -77,10 +77,10 @@ export async function POST(request: NextRequest) {
     // Increment the order number
     const newOrderNumber = (parseInt(lastOrderNumber) + 1).toString().padStart(3, '0'); // Pad to 3 digits
 
-    // Set initial status to 'preparing'
+    // Set initial status to 'preparing' and payment status to 'pending'
     await executeQuery(
-      'INSERT INTO orders (id, order_number, items, total, status) VALUES (?, ?, ?, ?, ?)',
-      [orderId, newOrderNumber, JSON.stringify(body.items), body.total, 'preparing']
+      'INSERT INTO orders (id, order_number, items, total, status, payment_status) VALUES (?, ?, ?, ?, ?, ?)',
+      [orderId, newOrderNumber, JSON.stringify(body.items), body.total, 'preparing', 'pending']
     );
 
     return NextResponse.json({ id: orderId, success: true, order_number: newOrderNumber });

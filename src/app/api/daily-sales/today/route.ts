@@ -5,16 +5,47 @@ import { getTodayDateString } from '@/lib/timezone-dynamic';
 export async function GET() {
   try {
     const today = await getTodayDateString();
-    const rows = await executeQuery(
+
+    // Get total sales from daily_sales table
+    const dailyRows = await executeQuery(
       'SELECT total_orders, total_revenue FROM daily_sales WHERE sale_date = ?',
       [today]
     ) as any[];
 
-    if (rows.length === 0) {
-      return NextResponse.json({ total_orders: 0, total_revenue: 0 });
-    }
+    const totalData = dailyRows.length > 0 ? dailyRows[0] : { total_orders: 0, total_revenue: 0 };
 
-    return NextResponse.json(rows[0]);
+    // Get payment mode breakdown from orders table
+    const paymentRows = await executeQuery(
+      `SELECT
+        payment_mode,
+        COUNT(*) as order_count,
+        SUM(total) as revenue
+       FROM orders
+       WHERE DATE(order_time) = ? AND status = 'served'
+       GROUP BY payment_mode`,
+      [today]
+    ) as any[];
+
+    // Structure the payment breakdown
+    const paymentBreakdown = {
+      cash: { orders: 0, revenue: 0 },
+      online: { orders: 0, revenue: 0 }
+    };
+
+    paymentRows.forEach((row: any) => {
+      const mode = row.payment_mode as 'cash' | 'online';
+      if (mode === 'cash' || mode === 'online') {
+        paymentBreakdown[mode] = {
+          orders: row.order_count,
+          revenue: row.revenue
+        };
+      }
+    });
+
+    return NextResponse.json({
+      ...totalData,
+      payment_breakdown: paymentBreakdown
+    });
   } catch (error) {
     console.error('Error fetching today\'s sales:', error);
     return NextResponse.json(

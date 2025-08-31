@@ -1,7 +1,25 @@
- 'use client';
+'use client';
 
 import { useState, useEffect } from 'react';
 import { MenuItem, OrderItem, CreateOrderRequest, Order } from '@/types';
+
+// Google Pay type declarations
+declare global {
+  interface Window {
+    google?: any;
+  }
+  namespace google {
+    namespace payments {
+      namespace api {
+        class PaymentsClient {
+          constructor(config: { environment: string });
+          isReadyToPay(request: any): Promise<{ result: boolean }>;
+          loadPaymentData(request: any): Promise<any>;
+        }
+      }
+    }
+  }
+}
 
 const CustomerOrderSystem = () => {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
@@ -17,6 +35,7 @@ const CustomerOrderSystem = () => {
   const [orderNumber, setOrderNumber] = useState<string | null>(null);
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<'pending' | 'paid' | 'failed'>('pending');
 
   // Extract unique categories from menu items
   const categories = ['All', ...Array.from(new Set(menuItems.map(item => item.category)))];
@@ -83,13 +102,15 @@ const CustomerOrderSystem = () => {
       if (!response.ok) throw new Error('Failed to fetch orders');
       const data = await response.json();
       setActiveOrders(data);
-      
+
       if (orderNumber !== null) {
         const ourOrder = data.find((order: Order) => order.order_number === orderNumber);
         if (ourOrder) {
           setOrderStatus(ourOrder.status);
+          setPaymentStatus(ourOrder.payment_status);
         } else {
           setOrderStatus('served');
+          setPaymentStatus('paid'); // Assume paid if served
         }
       }
     } catch (err) {
@@ -109,11 +130,11 @@ const CustomerOrderSystem = () => {
 
   const placeOrder = async () => {
     if (buildingOrder.length === 0) return;
-    
+
     setIsPlacingOrder(true); // Disable button
     try {
       const total = buildingOrder.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-      
+
       const orderData: CreateOrderRequest = {
         items: buildingOrder,
         total
@@ -130,9 +151,11 @@ const CustomerOrderSystem = () => {
       const result = await response.json();
       setOrderNumber(result.order_number);
       setOrderStatus('preparing');
+      setPaymentStatus('pending');
+      setIsPlacingOrder(false); // Re-enable button after successful order
       console.log("Order placed successfully:", result.order_number); // Debugging statement
       console.log("Order number set to:", result.order_number); // Debugging statement
-      
+
     } catch (err) {
       setError('Failed to place order');
       console.error(err);
@@ -164,6 +187,91 @@ const CustomerOrderSystem = () => {
     setBuildingOrder([]);
     setOrderNumber(null);
     setOrderStatus(null);
+    setPaymentStatus('pending');
+    setIsPlacingOrder(false); // Reset placing order state for new order
+  };
+
+  const handlePayment = async () => {
+    if (!orderNumber) return;
+
+    try {
+      // Calculate total amount
+      const totalAmount = buildingOrder.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+      // Google Pay configuration
+      const paymentDataRequest = {
+        apiVersion: 2,
+        apiVersionMinor: 0,
+        allowedPaymentMethods: [
+          {
+            type: 'CARD',
+            parameters: {
+              allowedAuthMethods: ['PAN_ONLY', 'CRYPTOGRAM_3DS'],
+              allowedCardNetworks: ['AMEX', 'DISCOVER', 'INTERAC', 'JCB', 'MASTERCARD', 'VISA']
+            },
+            tokenizationSpecification: {
+              type: 'PAYMENT_GATEWAY',
+              parameters: {
+                gateway: 'example',
+                gatewayMerchantId: 'exampleGatewayMerchantId'
+              }
+            }
+          }
+        ],
+        merchantInfo: {
+          merchantId: '12345678901234567890',
+          merchantName: 'Cafe Adda'
+        },
+        transactionInfo: {
+          totalPriceStatus: 'FINAL',
+          totalPrice: totalAmount.toString(),
+          currencyCode: 'INR',
+          countryCode: 'IN'
+        }
+      };
+
+      // Check if Google Pay is available
+      const paymentsClient = new google.payments.api.PaymentsClient({
+        environment: 'TEST' // Change to 'PRODUCTION' for live
+      });
+
+      const isReadyToPay = await paymentsClient.isReadyToPay({
+        apiVersion: 2,
+        apiVersionMinor: 0,
+        allowedPaymentMethods: paymentDataRequest.allowedPaymentMethods
+      });
+
+      if (!isReadyToPay.result) {
+        throw new Error('Google Pay is not available');
+      }
+
+      // Load payment data
+      const paymentData = await paymentsClient.loadPaymentData(paymentDataRequest);
+
+      // If payment successful, update order status
+      const response = await fetch(`/api/orders/${orderNumber}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          paymentMethod: 'google_pay',
+          paymentData: paymentData
+        })
+      });
+
+      if (!response.ok) throw new Error('Payment processing failed');
+
+      const result = await response.json();
+      setPaymentStatus('paid');
+      console.log("Payment successful:", result);
+
+      // Trigger refresh in other components (like CafeOrderSystem)
+      localStorage.setItem('orderUpdateTrigger', Date.now().toString());
+      window.dispatchEvent(new CustomEvent('orderUpdated'));
+
+    } catch (err) {
+      console.error('Payment failed:', err);
+      setPaymentStatus('failed');
+    }
   };
 
   const isOrderActive = orderNumber !== null && orderStatus !== 'served';
@@ -224,15 +332,28 @@ const CustomerOrderSystem = () => {
               <div className="text-xs sm:text-sm text-red-700">
                 Status: {orderStatus || 'processing'}
               </div>
+              <div className="text-xs sm:text-sm text-red-700">
+                Payment: {paymentStatus === 'paid' ? 'Paid' : paymentStatus === 'failed' ? 'Failed' : 'Pending'}
+              </div>
             </div>
-            {orderStatus === 'served' && (
-              <button
-                onClick={startNewOrder}
-                className="px-3 py-1 sm:px-4 sm:py-2 bg-green-600 text-white rounded-lg text-xs sm:text-sm font-medium hover:bg-green-700"
-              >
-                New Order
-              </button>
-            )}
+            <div className="flex flex-col gap-2">
+              {paymentStatus === 'pending' && orderStatus !== 'served' && (
+                <button
+                  onClick={handlePayment}
+                  className="px-3 py-1 sm:px-4 sm:py-2 bg-blue-600 text-white rounded-lg text-xs sm:text-sm font-medium hover:bg-blue-700"
+                >
+                  Pay ₹{buildingOrder.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
+                </button>
+              )}
+              {orderStatus === 'served' && (
+                <button
+                  onClick={startNewOrder}
+                  className="px-3 py-1 sm:px-4 sm:py-2 bg-green-600 text-white rounded-lg text-xs sm:text-sm font-medium hover:bg-green-700"
+                >
+                  New Order
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -398,6 +519,24 @@ const CustomerOrderSystem = () => {
           <div className="text-sm mt-2">Please check back later</div>
         </div>
       )}
+
+      {/* WhatsApp Chat Button */}
+      <div className="max-w-md mx-auto relative">
+        <button
+          onClick={() => {
+            const phoneNumber = '917558379411'; // Replace with actual cafe WhatsApp number
+            const message = encodeURIComponent('Hello, I have placed Order kindly check your wahatsapp.');
+            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
+            window.open(whatsappUrl, '_blank');
+          }}
+          className="fixed bottom-4 right-4 bg-green-500 hover:bg-green-600 text-white p-3 rounded-full shadow-lg transition-colors duration-200 z-50 max-w-[56px] max-h-[56px]"
+          title="Chat with us on WhatsApp"
+        >
+          <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893A11.821 11.821 0 0020.885 3.488"/>
+          </svg>
+        </button>
+      </div>
     </div>
   );
 };
