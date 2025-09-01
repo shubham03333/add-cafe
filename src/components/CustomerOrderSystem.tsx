@@ -255,7 +255,8 @@ const CustomerOrderSystem = () => {
 
   const fetchActiveOrders = async () => {
     try {
-      const response = await fetch('/api/orders');
+      // Fetch orders including cancelled and served ones to distinguish status properly
+      const response = await fetch('/api/orders?status=preparing,ready,served,cancelled&includeServed=true');
       if (!response.ok) throw new Error('Failed to fetch orders');
       const data = await response.json();
       setActiveOrders(data);
@@ -270,22 +271,15 @@ const CustomerOrderSystem = () => {
           // Update recent orders in localStorage with current status
           updateRecentOrderStatus(orderNumber, ourOrder.status, ourOrder.payment_status);
         } else {
-          // Order not found - determine if it was served or cancelled
-          let finalStatus: Order['status'];
-          let finalPaymentStatus: 'pending' | 'paid' | 'failed';
-
-          if (lastKnownOrderStatus === 'ready' || lastKnownOrderStatus === 'served') {
-            finalStatus = 'served';
-            finalPaymentStatus = 'paid'; // Assume paid if served
-          } else {
-            finalStatus = 'cancelled';
-            finalPaymentStatus = 'pending'; // Keep pending if cancelled
-          }
+          // Order not found in active orders - it must have been deleted (cancelled)
+          const finalStatus: Order['status'] = 'cancelled';
+          const finalPaymentStatus: 'pending' | 'paid' | 'failed' = 'pending';
 
           setOrderStatus(finalStatus);
           setPaymentStatus(finalPaymentStatus);
+          setLastKnownOrderStatus(finalStatus); // Update last known status
 
-          // Update recent orders in localStorage with final status
+          // Update recent orders in localStorage with cancelled status
           updateRecentOrderStatus(orderNumber, finalStatus, finalPaymentStatus);
         }
       }
@@ -449,7 +443,13 @@ const CustomerOrderSystem = () => {
     try {
       const total = editingOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 
-      const response = await fetch(`/api/orders/${orderNumber}`, {
+      // Find the current order to get the database ID
+      const currentOrder = activeOrders.find(order => order.order_number === orderNumber);
+      if (!currentOrder) {
+        throw new Error('Order not found');
+      }
+
+      const response = await fetch(`/api/orders/${currentOrder.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -464,6 +464,29 @@ const CustomerOrderSystem = () => {
       setShowEditModal(false);
       setEditingOrderItems([]);
       fetchActiveOrders(); // Refresh orders to show updated data
+
+      // Update recent orders in localStorage with the edited items and total
+      try {
+        const storedRecentOrders = localStorage.getItem('recentOrders');
+        if (storedRecentOrders) {
+          let recentOrdersArray: Order[] = JSON.parse(storedRecentOrders);
+          const orderIndex = recentOrdersArray.findIndex(order => order.order_number === orderNumber);
+          if (orderIndex !== -1) {
+            recentOrdersArray[orderIndex] = {
+              ...recentOrdersArray[orderIndex],
+              items: editingOrderItems,
+              total: total
+            };
+            localStorage.setItem('recentOrders', JSON.stringify(recentOrdersArray));
+            setRecentOrders(recentOrdersArray);
+
+            // Trigger update event for other components to refresh recent orders
+            window.dispatchEvent(new CustomEvent('recentOrdersUpdated'));
+          }
+        }
+      } catch (e) {
+        console.error('Failed to update recent orders in localStorage', e);
+      }
 
       console.log("Order updated successfully:", result);
     } catch (err) {
@@ -621,10 +644,10 @@ const CustomerOrderSystem = () => {
               setShowRecentOrdersModal(true);
               loadRecentOrders();
             }}
-            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-2 py-1 rounded-lg text-xs font-medium transition-all duration-200 min-h-[32px] flex items-center gap-1"
+            className="bg-white/30 hover:bg-white/50 backdrop-blur-md text-white px-3 py-2 rounded-2xl text-xs font-semibold shadow-lg transition-all duration-300 min-h-[40px] flex items-center gap-2 border border-white/40 hover:border-white cursor-pointer"
             title="Recent Orders"
           >
-            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18M3 18h18" />
             </svg>
             Recent Orders
@@ -683,7 +706,19 @@ const CustomerOrderSystem = () => {
                   </button>
                 )}
 
-                {orderStatus === 'served' && (
+                {orderStatus !== 'served' && orderStatus !== 'cancelled' && (
+                  <button
+                    onClick={startEditingOrder}
+                    className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-3 rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-200 min-h-[48px] flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    Edit Order
+                  </button>
+                )}
+
+                {(orderStatus === 'served' || orderStatus === 'cancelled') && (
                   <button
                     onClick={startNewOrder}
                     className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-3 rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-200 min-h-[48px] flex items-center justify-center gap-2"
@@ -1180,15 +1215,15 @@ const CustomerOrderSystem = () => {
                   <p className="text-sm mt-1">Please try again later</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
+                <div className="grid grid-cols-2 gap-2">
                   {menuItems.map(item => (
                     <button
                       key={item.id}
                       onClick={() => addItemToEditingOrder(item, 1)}
-                      className="bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white p-3 rounded-lg font-medium text-sm transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg flex flex-col items-center justify-center min-h-[80px]"
+                      className="bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white p-2 rounded-md font-medium text-xs transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg flex flex-col items-center justify-center min-h-[60px]"
                     >
                       <div className="font-semibold text-xs leading-tight text-center mb-1">{item.name}</div>
-                      <div className="text-xs opacity-90 bg-white/20 rounded px-2 py-1">₹{item.price}</div>
+                      <div className="text-xs opacity-90 bg-white/20 rounded px-1.5 py-0.5">₹{item.price}</div>
                     </button>
                   ))}
                 </div>
