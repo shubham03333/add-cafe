@@ -36,6 +36,49 @@ const CustomerOrderSystem = () => {
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'paid' | 'failed'>('pending');
+  const [showCartModal, setShowCartModal] = useState(false);
+  const [isEditingOrder, setIsEditingOrder] = useState(false);
+  const [editingOrderItems, setEditingOrderItems] = useState<OrderItem[]>([]);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showEditBuildingOrderModal, setShowEditBuildingOrderModal] = useState(false);
+  const [editingBuildingOrderItems, setEditingBuildingOrderItems] = useState<OrderItem[]>([]);
+  const [isEditingCart, setIsEditingCart] = useState(false);
+  const [isLoadingEditModal, setIsLoadingEditModal] = useState(false);
+
+  // New state for recent orders modal and data
+  const [showRecentOrdersModal, setShowRecentOrdersModal] = useState(false);
+  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
+
+  // Function to safely load recent orders from localStorage
+  const loadRecentOrders = () => {
+    try {
+      if (typeof window !== 'undefined' && window.self === window.top) { // Check if not in iframe to avoid cross-origin issues
+        const storedRecentOrders = localStorage.getItem('recentOrders');
+        if (storedRecentOrders) {
+          setRecentOrders(JSON.parse(storedRecentOrders));
+        }
+      } else {
+        console.warn('Running in iframe, localStorage access blocked for security reasons');
+        setRecentOrders([]); // Clear or handle accordingly
+      }
+    } catch (e) {
+      console.error('Failed to load recent orders from localStorage', e);
+      setRecentOrders([]);
+    }
+  };
+
+  // Listen for recent orders update event
+  useEffect(() => {
+    const handleRecentOrdersUpdate = () => {
+      loadRecentOrders();
+    };
+
+    window.addEventListener('recentOrdersUpdated', handleRecentOrdersUpdate);
+
+    return () => {
+      window.removeEventListener('recentOrdersUpdated', handleRecentOrdersUpdate);
+    };
+  }, []);
 
   // Extract unique categories from menu items
   const categories = ['All', ...Array.from(new Set(menuItems.map(item => item.category)))];
@@ -243,6 +286,35 @@ const CustomerOrderSystem = () => {
       console.log("Order placed successfully:", result.order_number); // Debugging statement
       console.log("Order number set to:", result.order_number); // Debugging statement
 
+        // Save recent order to localStorage
+        try {
+          const storedRecentOrders = localStorage.getItem('recentOrders');
+          let recentOrdersArray: Order[] = storedRecentOrders ? JSON.parse(storedRecentOrders) : [];
+
+          // Create complete order object with all necessary data
+          const completeOrder: Order = {
+            ...result,
+            items: buildingOrder,
+            total: buildingOrder.reduce((sum, item) => sum + (item.price * item.quantity), 0),
+            status: 'preparing',
+            payment_status: 'pending'
+          };
+
+          // Add new order at the front
+          recentOrdersArray = [completeOrder, ...recentOrdersArray.filter(o => o.order_number !== completeOrder.order_number)];
+          // Limit to last 5 orders
+          if (recentOrdersArray.length > 5) {
+            recentOrdersArray = recentOrdersArray.slice(0, 5);
+          }
+          localStorage.setItem('recentOrders', JSON.stringify(recentOrdersArray));
+          setRecentOrders(recentOrdersArray);
+
+          // Trigger update event for other components to refresh recent orders
+          window.dispatchEvent(new CustomEvent('recentOrdersUpdated'));
+        } catch (e) {
+          console.error('Failed to save recent orders to localStorage', e);
+        }
+
     } catch (err) {
       setError('Failed to place order');
       console.error(err);
@@ -276,6 +348,87 @@ const CustomerOrderSystem = () => {
     setOrderStatus(null);
     setPaymentStatus('pending');
     setIsPlacingOrder(false); // Reset placing order state for new order
+  };
+
+  const startEditingOrder = async () => {
+    if (!orderNumber) return;
+
+    const currentOrder = activeOrders.find(order => order.order_number === orderNumber);
+    if (currentOrder && currentOrder.items) {
+      setEditingOrderItems([...currentOrder.items]);
+
+      // Check if menu items are loaded
+      if (menuItems.length === 0 && !loading) {
+        setIsLoadingEditModal(true);
+        try {
+          await fetchMenu();
+        } catch (error) {
+          console.error('Failed to fetch menu items for edit modal:', error);
+        } finally {
+          setIsLoadingEditModal(false);
+        }
+      }
+
+      setShowEditModal(true);
+    }
+  };
+
+  const updateEditingOrderItemQuantity = (itemId: number, newQuantity: number) => {
+    if (newQuantity <= 0) {
+      setEditingOrderItems(prev => prev.filter(item => item.id !== itemId));
+    } else {
+      setEditingOrderItems(prev => prev.map(item =>
+        item.id === itemId ? { ...item, quantity: newQuantity } : item
+      ));
+    }
+  };
+
+  const removeEditingOrderItem = (itemId: number) => {
+    setEditingOrderItems(prev => prev.filter(item => item.id !== itemId));
+  };
+
+  const addItemToEditingOrder = (item: MenuItem, quantity: number) => {
+    setEditingOrderItems(prev => {
+      const existing = prev.find(p => p.id === item.id);
+      if (existing) {
+        return prev.map(p => p.id === item.id ? {...p, quantity: p.quantity + quantity} : p);
+      }
+      return [...prev, { ...item, quantity }];
+    });
+  };
+
+  const saveEditedOrder = async () => {
+    if (!orderNumber || editingOrderItems.length === 0) return;
+
+    try {
+      const total = editingOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+
+      const response = await fetch(`/api/orders/${orderNumber}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          items: editingOrderItems,
+          total
+        })
+      });
+
+      if (!response.ok) throw new Error('Failed to update order');
+
+      const result = await response.json();
+      setShowEditModal(false);
+      setEditingOrderItems([]);
+      fetchActiveOrders(); // Refresh orders to show updated data
+
+      console.log("Order updated successfully:", result);
+    } catch (err) {
+      setError('Failed to update order');
+      console.error(err);
+    }
+  };
+
+  const cancelEditingOrder = () => {
+    setShowEditModal(false);
+    setEditingOrderItems([]);
   };
 
   const handlePayment = async () => {
@@ -397,26 +550,41 @@ const CustomerOrderSystem = () => {
       <div className="bg-gradient-to-r from-red-500 via-red-600 to-red-700 rounded-2xl shadow-xl p-4 mb-4 relative overflow-hidden">
         <div className="absolute inset-0 bg-black/10"></div>
         <div className="relative z-10">
-          <div className="flex justify-between items-start mb-2">
-            <div className="flex items-center gap-3">
-              <img src="/logo.png" alt="Logo" className="w-12 h-12 sm:w-16 sm:h-16" />
-              <div>
-                <h3>Place Your Order</h3>
-                {/* <p className="text-red-100 text-sm">Place Your Order</p> */}
-              </div>
-            </div>
-            {(buildingOrder.length > 0 || isOrderActive) && !orderNumber && (
-              <button
-                onClick={clearOrder}
-                className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px] flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                Clear
-              </button>
-            )}
+      <div className="flex justify-between items-start mb-2">
+        <div className="flex items-center gap-3">
+          <img src="/logo.png" alt="Logo" className="w-12 h-12 sm:w-16 sm:h-16" />
+          <div>
+            <h3>Place Your Order</h3>
+            {/* <p className="text-red-100 text-sm">Place Your Order</p> */}
           </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {(buildingOrder.length > 0 || isOrderActive) && !orderNumber && (
+            <button
+              onClick={clearOrder}
+              className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px] flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Clear
+            </button>
+          )}
+          <button
+            onClick={() => {
+              setShowRecentOrdersModal(true);
+              loadRecentOrders();
+            }}
+            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px] flex items-center gap-2"
+            title="Recent Orders"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18M3 18h18" />
+            </svg>
+            Recent Orders
+          </button>
+        </div>
+      </div>
         </div>
       </div>
 
@@ -468,6 +636,7 @@ const CustomerOrderSystem = () => {
                     Pay ₹{buildingOrder.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
                   </button>
                 )}
+
                 {orderStatus === 'served' && (
                   <button
                     onClick={startNewOrder}
@@ -481,109 +650,41 @@ const CustomerOrderSystem = () => {
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      )}
 
-      {(buildingOrder.length > 0 || isOrderActive) && (
-        <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-2xl p-3 mb-4 border border-orange-200 shadow-lg">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="bg-orange-500 rounded-full p-1.5">
-              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
-              </svg>
-            </div>
-            <h3 className="font-bold text-orange-900 text-base">Your Order</h3>
-          </div>
-
-          <div className="space-y-2 mb-3">
-            {buildingOrder.map(item => (
-              <div key={item.id} className="bg-white rounded-lg p-2 shadow-sm border border-orange-100">
-                <div className="flex justify-between items-center">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-orange-900 font-semibold text-sm block mb-1">{item.name}</span>
-                    <span className="text-orange-700 font-medium text-xs">₹{item.price} each</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {!orderNumber ? (
-                      <div className="flex items-center gap-1 bg-orange-100 rounded-md p-1">
-                        <button
-                          onClick={() => updateBuildingOrderItemQuantity(item.id, item.quantity - 1)}
-                          className="w-6 h-6 bg-orange-500 text-white rounded-md flex items-center justify-center hover:bg-orange-600 transition-colors text-xs font-bold min-h-[24px] min-w-[24px]"
-                        >
-                          −
-                        </button>
-                        <span className="w-6 text-center font-bold text-orange-900 text-xs">{item.quantity}</span>
-                        <button
-                          onClick={() => updateBuildingOrderItemQuantity(item.id, item.quantity + 1)}
-                          className="w-6 h-6 bg-orange-500 text-white rounded-md flex items-center justify-center hover:bg-orange-600 transition-colors text-xs font-bold min-h-[24px] min-w-[24px]"
-                        >
-                          +
-                        </button>
+            {/* Order Items Display */}
+            {(() => {
+              const currentOrder = activeOrders.find(order => order.order_number === orderNumber);
+              if (currentOrder && currentOrder.items && currentOrder.items.length > 0) {
+                return (
+                  <div className="border-t border-gray-200 pt-4">
+                    <h4 className="font-semibold text-gray-900 mb-3">Order Items</h4>
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {currentOrder.items.map((item, index) => (
+                        <div key={index} className="flex justify-between items-center bg-gray-50 rounded-lg p-3">
+                          <div className="flex-1 min-w-0">
+                            <span className="text-gray-900 font-medium text-sm block">{item.name}</span>
+                            <span className="text-gray-600 text-xs">₹{item.price} × {item.quantity}</span>
+                          </div>
+                          <span className="font-bold text-gray-900 text-sm">₹{item.price * item.quantity}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="border-t border-gray-200 mt-3 pt-3">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-gray-900 text-lg">Total: ₹{currentOrder.total}</span>
+                        <span className="text-sm text-gray-600">{currentOrder.items.length} item{currentOrder.items.length !== 1 ? 's' : ''}</span>
                       </div>
-                    ) : (
-                      <span className="text-orange-900 font-semibold text-xs">×{item.quantity}</span>
-                    )}
-                    <span className="font-bold text-orange-900 text-sm w-12 text-right">₹{item.price * item.quantity}</span>
-                    {!orderNumber && (
-                      <button
-                        onClick={() => removeItemFromBuildingOrder(item.id)}
-                        className="w-6 h-6 bg-red-100 hover:bg-red-200 text-red-600 rounded-md flex items-center justify-center transition-colors min-h-[24px] min-w-[24px]"
-                        title="Remove item"
-                      >
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                      </button>
-                    )}
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="bg-white rounded-lg p-3 shadow-sm border border-orange-100">
-            <div className="flex justify-between items-center mb-3">
-              <span className="font-bold text-orange-900 text-base">
-                Total: ₹{buildingOrder.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
-              </span>
-              <div className="text-xs text-orange-700">
-                {buildingOrder.length} item{buildingOrder.length !== 1 ? 's' : ''}
-              </div>
-            </div>
-
-            <div className="flex gap-2 items-center">
-              {orderNumber ? (
-                <div className="flex-1 bg-orange-100 text-orange-900 px-3 py-2 rounded-lg font-semibold text-xs text-center">
-                  Order #{orderNumber}
-                </div>
-              ) : (
-                <button
-                  onClick={placeOrder}
-                  disabled={isPlacingOrder}
-                  className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-4 py-3 rounded-lg font-bold text-sm shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[44px] flex items-center justify-center gap-2"
-                >
-                  {isPlacingOrder ? (
-                    <>
-                      <svg className="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                      </svg>
-                      Placing Order...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                      Place Order
-                    </>
-                  )}
-                </button>
-              )}
-            </div>
+                );
+              }
+              return null;
+            })()}
           </div>
         </div>
       )}
+
+
 
       <div className="bg-white rounded-2xl shadow-xl p-4 mb-4">
         <div className="flex justify-between items-center mb-2">
@@ -710,11 +811,390 @@ const CustomerOrderSystem = () => {
         )}
       </div>
 
+      {/* Fixed Bottom Cart Bar */}
+      {buildingOrder.length > 0 && !orderNumber && (
+        <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40 max-w-md mx-auto">
+          <div className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="bg-orange-500 rounded-full p-2">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="font-semibold text-gray-900">
+                    {buildingOrder.length} item{buildingOrder.length !== 1 ? 's' : ''}
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    ₹{buildingOrder.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowCartModal(true)}
+                className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-6 py-3 rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-200"
+              >
+                View Cart
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cart Modal */}
+      {showCartModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-start justify-center pt-4 pb-4">
+          <div className="bg-white w-full max-w-md mx-4 rounded-3xl max-h-[95vh] overflow-hidden shadow-2xl">
+            <div className="p-3 sm:p-4">
+        {/* Modal Header */}
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <h3 className="text-base sm:text-lg font-bold text-gray-900">
+            {isEditingCart ? 'Add Items to Cart' : (orderNumber ? `Order #${orderNumber}` : 'Your Order')}
+          </h3>
+          <button
+            onClick={() => setShowCartModal(false)}
+            className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-2 py-1.5 rounded-md font-semibold text-xs shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-1.5"
+          >
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Add Item
+          </button>
+        </div>
+
+        {/* Order Items */}
+              <div className="space-y-3 mb-4 sm:mb-6 max-h-80 sm:max-h-96 overflow-y-auto">
+                {(() => {
+                  // Show building order items if no order number, otherwise show placed order items
+                  const itemsToShow = orderNumber
+                    ? (activeOrders.find(order => order.order_number === orderNumber)?.items || [])
+                    : buildingOrder;
+
+                  return itemsToShow.map(item => (
+                    <div key={item.id} className="bg-gray-50 rounded-lg p-3 sm:p-4">
+                      <div className="flex justify-between items-center">
+                        <div className="flex-1 min-w-0 mr-3">
+                          <span className="text-gray-900 font-semibold text-sm sm:text-base block mb-1">{item.name}</span>
+                          <span className="text-gray-600 font-medium text-xs sm:text-sm">₹{item.price} each</span>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          {!orderNumber && (
+                            <div className="flex items-center gap-1 bg-white rounded-md p-1 border">
+                              <button
+                                onClick={() => updateBuildingOrderItemQuantity(item.id, item.quantity - 1)}
+                                className="w-6 h-6 sm:w-7 sm:h-7 bg-orange-500 text-white rounded-md flex items-center justify-center hover:bg-orange-600 transition-colors text-xs sm:text-sm font-bold"
+                              >
+                                −
+                              </button>
+                              <span className="w-6 sm:w-8 text-center font-bold text-gray-900 text-xs sm:text-sm">{item.quantity}</span>
+                              <button
+                                onClick={() => updateBuildingOrderItemQuantity(item.id, item.quantity + 1)}
+                                className="w-6 h-6 sm:w-7 sm:h-7 bg-orange-500 text-white rounded-md flex items-center justify-center hover:bg-orange-600 transition-colors text-xs sm:text-sm font-bold"
+                              >
+                                +
+                              </button>
+                            </div>
+                          )}
+                          {orderNumber && (
+                            <span className="w-6 sm:w-8 text-center font-bold text-gray-900 text-xs sm:text-sm">×{item.quantity}</span>
+                          )}
+                          <span className="font-bold text-gray-900 text-sm sm:text-base w-12 sm:w-16 text-right">₹{item.price * item.quantity}</span>
+                          {!orderNumber && (
+                            <button
+                              onClick={() => removeItemFromBuildingOrder(item.id)}
+                              className="w-6 h-6 sm:w-7 sm:h-7 bg-red-100 hover:bg-red-200 text-red-600 rounded-md flex items-center justify-center transition-colors"
+                              title="Remove item"
+                            >
+                              <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+
+              {/* Total and Actions */}
+              <div className="border-t border-gray-200 pt-4">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="font-bold text-gray-900 text-lg sm:text-xl">
+                    Total: ₹{(() => {
+                      if (orderNumber) {
+                        const currentOrder = activeOrders.find(order => order.order_number === orderNumber);
+                        return currentOrder?.total || 0;
+                      }
+                      return buildingOrder.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                    })()}
+                  </span>
+                  <div className="text-xs sm:text-sm text-gray-600">
+                    {(() => {
+                      if (orderNumber) {
+                        const currentOrder = activeOrders.find(order => order.order_number === orderNumber);
+                        const itemCount = currentOrder?.items?.length || 0;
+                        return `${itemCount} item${itemCount !== 1 ? 's' : ''}`;
+                      }
+                      return `${buildingOrder.length} item${buildingOrder.length !== 1 ? 's' : ''}`;
+                    })()}
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-row gap-2 sm:gap-3">
+                    {!orderNumber && (
+                      <>
+                        <button
+                          onClick={() => {
+                            clearOrder();
+                            setShowCartModal(false);
+                          }}
+                          className="flex-1 bg-gradient-to-r from-red-400 to-red-500 hover:from-red-500 hover:to-red-600 text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-md sm:rounded-lg font-semibold text-xs sm:text-sm shadow-sm sm:shadow-md hover:shadow-lg transition-all duration-200 min-h-[36px] sm:min-h-[40px] flex items-center justify-center"
+                        >
+                          <svg className="w-3 h-3 sm:w-4 sm:h-4 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          Clear Cart
+                        </button>
+                        <button
+                          onClick={() => {
+                            placeOrder();
+                            setShowCartModal(false);
+                          }}
+                          disabled={isPlacingOrder}
+                          className="flex-1 bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-md sm:rounded-lg font-semibold text-xs sm:text-sm shadow-sm sm:shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed min-h-[36px] sm:min-h-[40px]"
+                        >
+                          {isPlacingOrder ? (
+                            <>
+                              <svg className="w-3 h-3 sm:w-4 sm:h-4 animate-spin mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              Placing Order...
+                            </>
+                          ) : (
+                            'Place Order'
+                          )}
+                        </button>
+                      </>
+                    )}
+                    {orderNumber && (
+                      <>
+                        <button
+                          onClick={() => setShowCartModal(false)}
+                          className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-2 py-1.5 sm:px-3 sm:py-2 rounded-md sm:rounded-lg font-semibold text-xs sm:text-sm shadow-sm sm:shadow-md hover:shadow-lg transition-all duration-200 min-h-[36px] sm:min-h-[40px] flex items-center justify-center"
+                        >
+                          Close
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Recent Orders Modal */}
+      {showRecentOrdersModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[80vh] overflow-y-auto shadow-2xl border border-gray-300">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900">Recent Orders</h3>
+              <button
+                onClick={() => setShowRecentOrdersModal(false)}
+                className="text-gray-600 hover:text-gray-900 transition-colors"
+                title="Close"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {recentOrders.length === 0 ? (
+              <p className="text-gray-600">No recent orders found.</p>
+            ) : (
+              <ul className="space-y-3">
+                {recentOrders.map(order => (
+                  <li key={order.order_number} className="border border-gray-200 rounded-lg p-3">
+                    <div className="flex justify-between items-center mb-1">
+                      <span className="font-semibold text-gray-900">Order #{order.order_number}</span>
+                      <span className="text-sm text-gray-600 capitalize">{order.status}</span>
+                    </div>
+                    <div className="text-sm text-gray-700">
+                      {order.items && order.items.length > 0 ? (
+                        <ul className="list-disc list-inside max-h-24 overflow-y-auto">
+                          {order.items.map(item => (
+                            <li key={item.id}>
+                              {item.name} × {item.quantity}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span>No items</span>
+                      )}
+                    </div>
+                    <div className="mt-2 font-bold text-gray-900">Total: ₹{order.total}</div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Edit Order Modal */}
+      {showEditModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50 transition-opacity duration-300">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full max-h-[85vh] overflow-y-auto shadow-2xl border border-gray-200 transform transition-all duration-300 scale-100">
+            {/* Header */}
+            <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-200">
+              <div>
+                <h2 className="text-2xl font-bold text-gray-900 bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent">
+                  Edit Order #{orderNumber}
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">Modify items and quantities</p>
+              </div>
+              <button
+                onClick={cancelEditingOrder}
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors duration-200"
+                title="Cancel"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Current Items Section */}
+            <div className="mb-6">
+              <h3 className="font-semibold text-gray-900 mb-4 text-lg flex items-center gap-2">
+                <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                Current Items
+              </h3>
+              <div className="space-y-3">
+                {editingOrderItems.map(item => (
+                  <div key={item.id} className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors duration-200">
+                    <div className="flex-1 min-w-0">
+                      <span className="text-gray-900 font-medium text-sm block truncate">{item.name}</span>
+                      <span className="text-gray-600 text-xs">₹{item.price} each</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2 bg-white rounded-full p-1 shadow-sm">
+                        <button
+                          onClick={() => updateEditingOrderItemQuantity(item.id, item.quantity - 1)}
+                          className="w-8 h-8 bg-gray-100 text-gray-700 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors duration-200 font-semibold text-lg"
+                          title="Decrease quantity"
+                        >
+                          -
+                        </button>
+                        <span className="w-8 text-center font-bold text-gray-900 text-sm">{item.quantity}</span>
+                        <button
+                          onClick={() => updateEditingOrderItemQuantity(item.id, item.quantity + 1)}
+                          className="w-8 h-8 bg-red-100 text-red-700 rounded-full flex items-center justify-center hover:bg-red-200 transition-colors duration-200 font-semibold text-lg"
+                          title="Increase quantity"
+                        >
+                          +
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => removeEditingOrderItem(item.id)}
+                        className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors duration-200"
+                        title="Remove item"
+                      >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Add Items Section */}
+            <div className="mb-6">
+              <h3 className="font-semibold text-gray-900 mb-4 text-lg flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                Add Items
+              </h3>
+              {(loading || isLoadingEditModal) ? (
+                <div className="text-center py-8">
+                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-red-500"></div>
+                  <p className="text-gray-600 mt-2">Loading menu items...</p>
+                </div>
+              ) : menuItems.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <svg className="w-12 h-12 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+                  <p className="text-lg font-medium">No menu items available</p>
+                  <p className="text-sm mt-1">Please try again later</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 max-h-80 overflow-y-auto">
+                  {menuItems.map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => addItemToEditingOrder(item, 1)}
+                      className="bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white p-3 rounded-lg font-medium text-sm transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg flex flex-col items-center justify-center min-h-[80px]"
+                    >
+                      <div className="font-semibold text-xs leading-tight text-center mb-1">{item.name}</div>
+                      <div className="text-xs opacity-90 bg-white/20 rounded px-2 py-1">₹{item.price}</div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Total and Action Buttons */}
+            <div className="border-t border-gray-200 pt-6">
+              <div className="flex justify-between items-center mb-6">
+                <div>
+                  <div className="text-sm text-gray-600">Order Total</div>
+                  <div className="text-2xl font-bold text-gray-900">
+                    ₹{editingOrderItems.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
+                  </div>
+                </div>
+                <div className="flex gap-2 sm:gap-3 flex-col sm:flex-row">
+                  <button
+                    onClick={cancelEditingOrder}
+                    className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-all duration-200 border border-gray-300 text-xs sm:text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveEditedOrder}
+                    disabled={editingOrderItems.length === 0}
+                    className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-red-600 to-red-800 text-white rounded-lg font-medium hover:from-red-700 hover:to-red-900 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-1.5 justify-center text-xs sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <svg className="w-3 h-3 sm:w-4 sm:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Save Changes
+                  </button>
+                </div>
+              </div>
+
+              {editingOrderItems.length === 0 && (
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+                  <p className="text-sm text-yellow-800">
+                    ⚠️ This order will be deleted if you save without any items.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* WhatsApp Chat Button */}
       <div className="max-w-md mx-auto relative">
         <button
           onClick={() => {
-            const phoneNumber = '917558379411'; // Replace with actual cafe WhatsApp number
+            const phoneNumber = '917558379410'; // Replace with actual cafe WhatsApp number
             const message = encodeURIComponent('Hello, I have placed Order kindly check your wahatsapp.');
             const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
             window.open(whatsappUrl, '_blank');
