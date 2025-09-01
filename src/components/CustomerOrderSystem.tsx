@@ -585,6 +585,9 @@ const CustomerOrderSystem = () => {
 
   const isOrderActive = orderNumber !== null && orderStatus !== 'served';
 
+  // Fix: Adjust isOrderActive to consider only 'preparing', 'ready', 'pending' as active
+  const isOrderEditable = orderNumber !== null && (orderStatus === 'preparing' || orderStatus === 'ready' || orderStatus === 'pending');
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 flex items-center justify-center">
@@ -694,7 +697,7 @@ const CustomerOrderSystem = () => {
               </div>
 
               <div className="flex flex-col gap-2">
-                {paymentStatus === 'pending' && orderStatus !== 'served' && (
+                {paymentStatus === 'pending' && isOrderEditable && (
                   <button
                     onClick={handlePayment}
                     className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-4 py-3 rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-200 min-h-[48px] flex items-center justify-center gap-2"
@@ -706,7 +709,7 @@ const CustomerOrderSystem = () => {
                   </button>
                 )}
 
-                {orderStatus !== 'served' && orderStatus !== 'cancelled' && (
+                {isOrderEditable && (
                   <button
                     onClick={startEditingOrder}
                     className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white px-4 py-3 rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-200 min-h-[48px] flex items-center justify-center gap-2"
@@ -718,7 +721,7 @@ const CustomerOrderSystem = () => {
                   </button>
                 )}
 
-                {(orderStatus === 'served' || orderStatus === 'cancelled') && (
+                {(!isOrderEditable && (orderStatus === 'served' || orderStatus === 'cancelled')) && (
                   <button
                     onClick={startNewOrder}
                     className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white px-4 py-3 rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-200 min-h-[48px] flex items-center justify-center gap-2"
