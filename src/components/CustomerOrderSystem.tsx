@@ -36,6 +36,7 @@ const CustomerOrderSystem = () => {
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
   const [orderStatus, setOrderStatus] = useState<string | null>(null);
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'paid' | 'failed'>('pending');
+  const [lastKnownOrderStatus, setLastKnownOrderStatus] = useState<string | null>(null);
   const [showCartModal, setShowCartModal] = useState(false);
   const [isEditingOrder, setIsEditingOrder] = useState(false);
   const [editingOrderItems, setEditingOrderItems] = useState<OrderItem[]>([]);
@@ -66,6 +67,32 @@ const CustomerOrderSystem = () => {
       setRecentOrders([]);
     }
   };
+
+  // Function to update recent order status in localStorage
+  const updateRecentOrderStatus = (orderNumber: string, status: Order['status'], paymentStatus: Order['payment_status']) => {
+    try {
+      if (typeof window !== 'undefined' && window.self === window.top) {
+        const storedRecentOrders = localStorage.getItem('recentOrders');
+        if (storedRecentOrders) {
+          let recentOrdersArray: Order[] = JSON.parse(storedRecentOrders);
+          const orderIndex = recentOrdersArray.findIndex(order => order.order_number === orderNumber);
+          if (orderIndex !== -1) {
+            recentOrdersArray[orderIndex] = {
+              ...recentOrdersArray[orderIndex],
+              status,
+              payment_status: paymentStatus
+            };
+            localStorage.setItem('recentOrders', JSON.stringify(recentOrdersArray));
+            setRecentOrders(recentOrdersArray);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to update recent order status in localStorage', e);
+    }
+  };
+
+
 
   // Listen for recent orders update event
   useEffect(() => {
@@ -238,9 +265,28 @@ const CustomerOrderSystem = () => {
         if (ourOrder) {
           setOrderStatus(ourOrder.status);
           setPaymentStatus(ourOrder.payment_status);
+          setLastKnownOrderStatus(ourOrder.status); // Update last known status
+
+          // Update recent orders in localStorage with current status
+          updateRecentOrderStatus(orderNumber, ourOrder.status, ourOrder.payment_status);
         } else {
-          setOrderStatus('served');
-          setPaymentStatus('paid'); // Assume paid if served
+          // Order not found - determine if it was served or cancelled
+          let finalStatus: Order['status'];
+          let finalPaymentStatus: 'pending' | 'paid' | 'failed';
+
+          if (lastKnownOrderStatus === 'ready' || lastKnownOrderStatus === 'served') {
+            finalStatus = 'served';
+            finalPaymentStatus = 'paid'; // Assume paid if served
+          } else {
+            finalStatus = 'cancelled';
+            finalPaymentStatus = 'pending'; // Keep pending if cancelled
+          }
+
+          setOrderStatus(finalStatus);
+          setPaymentStatus(finalPaymentStatus);
+
+          // Update recent orders in localStorage with final status
+          updateRecentOrderStatus(orderNumber, finalStatus, finalPaymentStatus);
         }
       }
     } catch (err) {
@@ -575,10 +621,10 @@ const CustomerOrderSystem = () => {
               setShowRecentOrdersModal(true);
               loadRecentOrders();
             }}
-            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-3 py-2 rounded-xl text-sm font-medium transition-all duration-200 min-h-[44px] flex items-center gap-2"
+            className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-2 py-1 rounded-lg text-xs font-medium transition-all duration-200 min-h-[32px] flex items-center gap-1"
             title="Recent Orders"
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18M3 18h18" />
             </svg>
             Recent Orders
