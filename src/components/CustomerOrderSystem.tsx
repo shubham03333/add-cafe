@@ -218,14 +218,48 @@ const CustomerOrderSystem = () => {
 
   useEffect(() => {
     fetchMenu();
-    fetchActiveOrders();
-    
+
+    // Fix flicker: fetch orders excluding served to keep edit button visible, but include cancelled
+    const fetchActiveOrdersSafe = async () => {
+      try {
+        const response = await fetch('/api/orders?status=preparing,ready,pending,cancelled&includeServed=false');
+        if (!response.ok) throw new Error('Failed to fetch orders');
+        const data = await response.json();
+        setActiveOrders(data);
+
+        if (orderNumber !== null) {
+          const ourOrder = data.find((order: Order) => order.order_number === orderNumber);
+          if (ourOrder) {
+            setOrderStatus(ourOrder.status);
+            setPaymentStatus(ourOrder.payment_status);
+            setLastKnownOrderStatus(ourOrder.status);
+            updateRecentOrderStatus(orderNumber, ourOrder.status, ourOrder.payment_status);
+          } else {
+            // Order not found in active orders - it must have been deleted (cancelled)
+            const finalStatus: Order['status'] = 'cancelled';
+            const finalPaymentStatus: 'pending' | 'paid' | 'failed' = 'pending';
+
+            setOrderStatus(finalStatus);
+            setPaymentStatus(finalPaymentStatus);
+            setLastKnownOrderStatus(finalStatus); // Update last known status
+
+            // Update recent orders in localStorage with cancelled status
+            updateRecentOrderStatus(orderNumber, finalStatus, finalPaymentStatus);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch orders:', err);
+      }
+    };
+
+    fetchActiveOrdersSafe();
+
     const pollingInterval = setInterval(() => {
       if (orderNumber) {
-        fetchActiveOrders();
+        fetchActiveOrdersSafe();
       }
     }, 3000);
-    
+
     // Generate or retrieve device ID
     const existingDeviceId = localStorage.getItem('deviceId');
     if (existingDeviceId) {
@@ -729,7 +763,7 @@ const CustomerOrderSystem = () => {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    New Order
+                    Place New Order
                   </button>
                 )}
               </div>

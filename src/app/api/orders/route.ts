@@ -32,7 +32,16 @@ export async function GET(request: NextRequest) {
     query += ' ORDER BY order_time ASC';
 
     const rows = await executeQuery(query) as any[];
-    console.log("Raw orders fetched from database:", rows);
+    console.log(`[ORDERS API] Fetching orders - includeServed: ${includeServed}, statusFilter: ${statusFilter}`);
+    console.log(`[ORDERS API] Query: ${query}`);
+    console.log(`[ORDERS API] Found ${rows.length} orders`);
+
+    // Log order statuses for debugging
+    const statusCounts = rows.reduce((acc, order) => {
+      acc[order.status] = (acc[order.status] || 0) + 1;
+      return acc;
+    }, {});
+    console.log(`[ORDERS API] Status breakdown:`, statusCounts);
 
     const orders = rows.map(row => {
       // Check if items is already an object or needs parsing
@@ -45,7 +54,7 @@ export async function GET(request: NextRequest) {
           itemsData = [];
         }
       }
-      
+
       return {
         ...row,
         items: itemsData
