@@ -668,14 +668,27 @@ const CustomerOrderSystem = () => {
         <div className="absolute inset-0 bg-black/10"></div>
         <div className="relative z-10">
       <div className="flex justify-between items-start mb-2">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-1">
           <img src="/logo.png" alt="Logo" className="w-12 h-12 sm:w-16 sm:h-16" />
-          <div>
+          <div className="flex-1">
             {/* <h3>Place Your Order</h3> */}
             {customerName && (
               <p className="text-red-100 text-sm">Welcome, {customerName}!</p>
             )}
           </div>
+          <button
+            onClick={() => {
+              setShowRecentOrdersModal(true);
+              loadRecentOrders();
+            }}
+            className="bg-white/30 hover:bg-white/50 backdrop-blur-md text-white px-3 py-2 rounded-2xl text-xs font-semibold shadow-lg transition-all duration-300 min-h-[40px] flex items-center gap-2 border border-white/40 hover:border-white cursor-pointer ml-2"
+            title="Recent Orders"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18M3 18h18" />
+            </svg>
+            Recent Orders
+          </button>
         </div>
         <div className="flex items-center gap-2">
           {(buildingOrder.length > 0 || isOrderActive) && !orderNumber && (
@@ -699,19 +712,6 @@ const CustomerOrderSystem = () => {
             </svg>
             {customerName ? 'Update Name' : 'Set Name'}
           </button> */}
-          <button
-            onClick={() => {
-              setShowRecentOrdersModal(true);
-              loadRecentOrders();
-            }}
-            className="bg-white/30 hover:bg-white/50 backdrop-blur-md text-white px-3 py-2 rounded-2xl text-xs font-semibold shadow-lg transition-all duration-300 min-h-[40px] flex items-center gap-2 border border-white/40 hover:border-white cursor-pointer"
-            title="Recent Orders"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18M3 18h18" />
-            </svg>
-            Recent Orders
-          </button>
         </div>
       </div>
         </div>
