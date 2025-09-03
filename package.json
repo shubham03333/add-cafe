@@ -17,10 +17,12 @@
   "dependencies": {
     "@planetscale/database": "^1.19.0",
     "@types/bcryptjs": "^2.4.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/uuid": "^10.0.0",
     "axios": "^1.11.0",
     "bcryptjs": "^3.0.2",
     "dotenv": "^16.5.0",
+    "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.541.0",
     "mysql2": "^3.14.3",
     "next": "15.5.0",

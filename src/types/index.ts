@@ -85,3 +85,32 @@ export interface UpdateOrderRequest {
   status?: Order['status'];
   payment_status?: Order['payment_status'];
 }
+
+// Customer authentication types
+export interface Customer {
+  id: number;
+  name: string;
+  mobile: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerSignupRequest {
+  name: string;
+  mobile: string;
+  password: string;
+}
+
+export interface CustomerLoginRequest {
+  mobile: string;
+  password: string;
+}
+
+export interface CustomerAuthResponse {
+  customer: Customer;
+  token: string;
+}
+
+export interface CustomerForgotPasswordRequest {
+  mobile: string;
+}

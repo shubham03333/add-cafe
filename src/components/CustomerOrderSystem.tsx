@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { MenuItem, OrderItem, CreateOrderRequest, Order } from '@/types';
+import { useCustomerAuth } from '@/contexts/CustomerAuthContext';
 
 // Google Pay type declarations
 declare global {
@@ -22,6 +23,7 @@ declare global {
 }
 
 const CustomerOrderSystem = () => {
+  const { customer, logout } = useCustomerAuth();
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [deviceId, setDeviceId] = useState<string | null>(null);
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -45,6 +47,13 @@ const CustomerOrderSystem = () => {
   const [editingBuildingOrderItems, setEditingBuildingOrderItems] = useState<OrderItem[]>([]);
   const [isEditingCart, setIsEditingCart] = useState(false);
   const [isLoadingEditModal, setIsLoadingEditModal] = useState(false);
+
+  // Customer name states
+  const [customerName, setCustomerName] = useState<string>(customer?.name || '');
+  const [showNameModal, setShowNameModal] = useState(false);
+  const [tempName, setTempName] = useState<string>('');
+
+
 
   // New state for recent orders modal and data
   const [showRecentOrdersModal, setShowRecentOrdersModal] = useState(false);
@@ -125,7 +134,7 @@ const CustomerOrderSystem = () => {
       'Tea': '/tea.png',
       'Water Bottle': '/water_bottle.png',
       'Mini water bottle':'/water_bottle.png',
-      'Chilax cold cocoa': '/cold_cofee.jpeg',
+      'Chilax cold cocoa': '/cocoa.jpeg',
 
       // Alternative spellings/case variations
       'Cheese roll': '/Chees_roll.jpeg',
@@ -176,7 +185,7 @@ const CustomerOrderSystem = () => {
     if (lowerDishName.includes('munch') && lowerDishName.includes('bhel')) {
       return '/manch_bhel.jpeg';
     }
-    if (lowerDishName.includes('manch') && lowerDishName.includes('roll')) {
+    if (lowerDishName.includes('munch') && lowerDishName.includes('roll')) {
       return '/manch_roll.jpeg';
     }
     if (lowerDishName.includes('masala') && lowerDishName.includes('manch')) {
@@ -195,7 +204,7 @@ const CustomerOrderSystem = () => {
       return '/water_bottle.png';
     }
     // Return default image if no match found
-    return '/manch_roll.jpeg'; // fallback image
+    return '/adda.png'; // fallback image
   };
   useEffect(() => {
     let filtered = menuItems;
@@ -269,6 +278,8 @@ const CustomerOrderSystem = () => {
       localStorage.setItem('deviceId', newDeviceId);
       setDeviceId(newDeviceId);
     }
+
+    // Customer name is now managed through authenticated user context
 
     return () => clearInterval(pollingInterval);
   }, [orderNumber]);
@@ -660,8 +671,10 @@ const CustomerOrderSystem = () => {
         <div className="flex items-center gap-3">
           <img src="/logo.png" alt="Logo" className="w-12 h-12 sm:w-16 sm:h-16" />
           <div>
-            <h3>Place Your Order</h3>
-            {/* <p className="text-red-100 text-sm">Place Your Order</p> */}
+            {/* <h3>Place Your Order</h3> */}
+            {customerName && (
+              <p className="text-red-100 text-sm">Welcome, {customerName}!</p>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -676,6 +689,16 @@ const CustomerOrderSystem = () => {
               Clear
             </button>
           )}
+          {/* <button
+            onClick={() => setShowNameModal(true)}
+            className="bg-white/30 hover:bg-white/50 backdrop-blur-md text-white px-3 py-2 rounded-2xl text-xs font-semibold shadow-lg transition-all duration-300 min-h-[40px] flex items-center gap-2 border border-white/40 hover:border-white cursor-pointer"
+            title="Set Customer Name"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            {customerName ? 'Update Name' : 'Set Name'}
+          </button> */}
           <button
             onClick={() => {
               setShowRecentOrdersModal(true);
@@ -763,7 +786,7 @@ const CustomerOrderSystem = () => {
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
-                    Place New Order
+                    New Order
                   </button>
                 )}
               </div>
@@ -893,7 +916,7 @@ const CustomerOrderSystem = () => {
               key={item.id}
               onClick={() => !orderNumber && addToOrder(item, 1)}
               disabled={!!orderNumber}
-              className={`w-full p-3 rounded-xl text-center font-medium min-h-[160px] flex flex-col justify-center transition-all duration-300 shadow-lg hover:shadow-xl cursor-pointer hover:scale-105 active:scale-95 ${
+      className={`w-full p-3 rounded-xl text-center font-medium min-h-[180px] flex flex-col justify-center transition-all duration-300 shadow-lg hover:shadow-xl cursor-pointer hover:scale-105 active:scale-95 ${
                 orderNumber
                   ? 'bg-gray-200 cursor-not-allowed opacity-60'
                   : 'bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 active:from-red-700 active:to-red-800'
@@ -904,7 +927,7 @@ const CustomerOrderSystem = () => {
                   <img
                     src={getDishImage(item.name)}
                     alt={item.name}
-                    className="w-20 h-20 object-cover rounded-xl border-2 border-white/30 shadow-md"
+                    className="w-24 h-24 object-cover rounded-xl border-2 border-white/30 shadow-md"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       target.src = '/water_bottle.png'; // fallback image
@@ -913,7 +936,7 @@ const CustomerOrderSystem = () => {
 
                 </div>
                 <div className="flex-1 flex flex-col justify-between">
-                  <div className="font-bold text-white text-xs leading-tight px-1 whitespace-normal text-center">{item.name}</div>
+                  <div className="font-bold text-white text-[10px] leading-tight px-1 whitespace-normal text-center">{item.name}</div>
                   <div className="bg-white/20 backdrop-blur-sm text-white font-bold rounded-lg px-2 py-1 mt-1 text-xs shadow-sm">₹{item.price}</div>
                 </div>
               </div>
@@ -1308,12 +1331,80 @@ const CustomerOrderSystem = () => {
         </div>
       )}
 
+      {/* Customer Name Modal */}
+      {/* {showNameModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full shadow-2xl border border-gray-300">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-xl font-bold text-gray-900">
+                {customerName ? 'Update Customer Name' : 'Set Customer Name'}
+              </h3>
+              <button
+                onClick={() => {
+                  setShowNameModal(false);
+                  setTempName('');
+                }}
+                className="text-gray-600 hover:text-gray-900 transition-colors"
+                title="Close"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="customerName" className="block text-sm font-medium text-gray-700 mb-2">
+                  Customer Name
+                </label>
+                <input
+                  id="customerName"
+                  type="text"
+                  value={tempName}
+                  onChange={(e) => setTempName(e.target.value)}
+                  placeholder="Enter customer name"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-transparent text-gray-900 text-base shadow-sm"
+                  autoFocus
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    setShowNameModal(false);
+                    setTempName('');
+                  }}
+                  className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-3 rounded-xl font-semibold text-sm transition-all duration-200"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (tempName.trim()) {
+                      // Customer name is now managed through authenticated user context
+                      localStorage.setItem('customerName', tempName.trim());
+                      setShowNameModal(false);
+                      setTempName('');
+                    }
+                  }}
+                  disabled={!tempName.trim()}
+                  className="flex-1 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white px-4 py-3 rounded-xl font-semibold text-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {customerName ? 'Update' : 'Set Name'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )} */}
+
       {/* WhatsApp Chat Button */}
       <div className="max-w-md mx-auto relative">
         <button
           onClick={() => {
             const phoneNumber = '917558379410'; // Replace with actual cafe WhatsApp number
-            const message = encodeURIComponent('Hello, I have placed Order kindly check your wahatsapp.');
+            const message = encodeURIComponent('Hello, I have placed Order kindly check your whatsapp.');
             const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
             window.open(whatsappUrl, '_blank');
           }}

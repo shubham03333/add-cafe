@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Script from "next/script";
 import "./globals.css";
+import { CustomerAuthProvider } from "@/contexts/CustomerAuthContext";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -20,11 +21,14 @@ export const metadata: Metadata = {
     icon: '/favicon.ico',
   },
   manifest: '/manifest.json',
-  themeColor: '#000000',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
   },
+};
+
+export const viewport = {
+  themeColor: '#000000',
 };
 
 export default function RootLayout({
@@ -40,7 +44,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <CustomerAuthProvider>
+          {children}
+        </CustomerAuthProvider>
         <Script src="https://pay.google.com/gp/p/js/pay.js" strategy="beforeInteractive" />
       </body>
     </html>

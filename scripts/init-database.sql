@@ -61,6 +61,17 @@ CREATE TABLE daily_sales (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
 
+-- Create customers table for customer authentication
+CREATE TABLE customers (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(100) NOT NULL,
+  mobile VARCHAR(15) NOT NULL UNIQUE,
+  password VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_customers_mobile (mobile)
+);
+
 -- Create indexes for better performance
 CREATE INDEX idx_orders_status ON orders(status);
 CREATE INDEX idx_orders_order_time ON orders(order_time);
