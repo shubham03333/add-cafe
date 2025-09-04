@@ -8,6 +8,8 @@ import { MenuItem } from '@/types';
 import SalesReport from '@/components/SalesReport';
 import InventoryDashboard from '@/components/InventoryDashboard';
 import UserManagement from '@/components/UserManagement';
+import OrderManagement from '@/components/OrderManagement';
+import OrderAnalyticsChart from '@/components/OrderAnalyticsChart';
 
 const AdminControlPanel = () => {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -375,12 +377,14 @@ const AdminControlPanel = () => {
           <div className="flex overflow-x-auto space-x-1 py-1 sm:py-0">
             {[
               { id: 'menu', label: 'Menu Management', icon: Menu },
-                { id: 'inventory', label: 'Inventory', icon: Package },
+              { id: 'orders', label: 'Orders', icon: Package },
+              { id: 'inventory', label: 'Inventory', icon: Package },
+              { id: 'analytics', label: 'Analytics', icon: TrendingUp },
               { id: 'reports', label: 'Sales Reports', icon: BarChart3 },
               { id: 'demand', label: 'Demand Analysis', icon: TrendingUp, href: '/demand-analysis' },
               // { id: 'settings', label: 'System Settings', icon: Settings },
               { id: 'users', label: 'User Management', icon: Users }
-            
+
             ].map((tab) => {
               const IconComponent = tab.icon;
               
@@ -644,9 +648,25 @@ const AdminControlPanel = () => {
           </div>
         )}
 
+        {/* Orders Tab */}
+        {activeTab === 'orders' && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-xl font-bold mb-4 text-gray-900">Order Management</h2>
+            <OrderManagement />
+          </div>
+        )}
+
         {/* Inventory Tab */}
         {activeTab === 'inventory' && (
           <InventoryDashboard />
+        )}
+
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-xl font-bold mb-4 text-gray-900">Order Analytics</h2>
+            <OrderAnalyticsChart />
+          </div>
         )}
       </div>
     </div>

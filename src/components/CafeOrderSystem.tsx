@@ -43,6 +43,9 @@ const CafeOrderSystem = () => {
   const [isPaymentModeModalOpen, setIsPaymentModeModalOpen] = useState(false);
   const [orderToServe, setOrderToServe] = useState<Order | null>(null);
 
+  // Analytics chart state
+  const [showAnalytics, setShowAnalytics] = useState(false);
+
   const closeOrderPopup = () => {
     setViewingOrder(null);
   };
@@ -951,6 +954,26 @@ const CafeOrderSystem = () => {
           </div>
         )}
       </div>
+
+      {/* Analytics Chart */}
+      {showAnalytics && (
+        <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
+          <div className="flex justify-between items-center mb-4">
+            {/* <h2 className="font-semibold text-gray-800 text-lg flex items-center gap-2">
+              <TrendingUp className="w-6 h-6 text-blue-600" />
+              Order Analytics
+            </h2> */}
+            <button
+              onClick={() => setShowAnalytics(false)}
+              className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-full transition-colors"
+              title="Close Analytics"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          {/* <OrderAnalyticsChart /> */}
+        </div>
+      )}
 
       {/* Sales Report Modal */}
       {isReportModalOpen && (

@@ -6,13 +6,17 @@ export async function GET() {
   try {
     const today = await getTodayDateString();
 
-    // Get total sales from daily_sales table
-    const dailyRows = await executeQuery(
-      'SELECT total_orders, total_revenue FROM daily_sales WHERE sale_date = ?',
+    // Get total sales from orders table for today (instead of daily_sales table)
+    const totalRows = await executeQuery(
+      `SELECT
+        COUNT(*) as total_orders,
+        SUM(total) as total_revenue
+       FROM orders
+       WHERE DATE(order_time) = ? AND status = 'served'`,
       [today]
     ) as any[];
 
-    const totalData = dailyRows.length > 0 ? dailyRows[0] : { total_orders: 0, total_revenue: 0 };
+    const totalData = totalRows.length > 0 ? totalRows[0] : { total_orders: 0, total_revenue: 0 };
 
     // Get payment mode breakdown from orders table
     const paymentRows = await executeQuery(

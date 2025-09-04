@@ -55,9 +55,10 @@ export async function executeQuery(query: string, params?: any[]) {
   if (!db) {
     throw new Error('Database not configured. Please check environment variables.');
   }
-  
+
   try {
-    const [rows] = await db.execute(query, params);
+    // Always pass params if provided, even if empty array
+    const [rows] = params !== undefined ? await db.execute(query, params) : await db.execute(query);
     return rows;
   } catch (error) {
     console.error('Database query error:', error);
