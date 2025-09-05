@@ -12,11 +12,14 @@ export async function GET() {
         COUNT(*) as total_orders,
         SUM(total) as total_revenue
        FROM orders
-       WHERE DATE(order_time) = ? AND status = 'served'`,
+       WHERE DATE(order_time) = ? AND payment_status = 'paid'`,
       [today]
     ) as any[];
 
     const totalData = totalRows.length > 0 ? totalRows[0] : { total_orders: 0, total_revenue: 0 };
+
+    // Today's sales should always show actual revenue - no manual overrides for today
+    // Manual overrides are only applied in historical sales reports, not for current day
 
     // Get payment mode breakdown from orders table
     const paymentRows = await executeQuery(
@@ -25,7 +28,7 @@ export async function GET() {
         COUNT(*) as order_count,
         SUM(total) as revenue
        FROM orders
-       WHERE DATE(order_time) = ? AND status = 'served'
+       WHERE DATE(order_time) = ? AND payment_status = 'paid'
        GROUP BY payment_mode`,
       [today]
     ) as any[];

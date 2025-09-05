@@ -78,7 +78,7 @@ const SalesReport = () => {
     setError(null);
   };
 
-    // Fetch today's sales
+  // Fetch today's sales
   const fetchTodaysSales = async () => {
     setSalesLoading(true);
     try {

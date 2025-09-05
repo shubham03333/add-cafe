@@ -16,28 +16,55 @@ export async function GET(request: NextRequest) {
 
     // Query to get total revenue and total orders for the date range
     const salesSummary = await executeQuery(
-      `SELECT 
+      `SELECT
         SUM(total) as total_revenue,
         COUNT(*) as total_orders
-       FROM orders 
-       WHERE order_time BETWEEN ? AND ? 
-         AND status = 'served'`,
+       FROM orders
+       WHERE order_time BETWEEN ? AND ?
+         AND payment_status = 'paid'`,
       [startDate, endDate]
     ) as any[];
 
     // Query to get daily sales breakdown - format date as YYYY-MM-DD string
     const dailySales = await executeQuery(
-      `SELECT 
+      `SELECT
         DATE_FORMAT(order_time, '%Y-%m-%d') as date,
         SUM(total) as revenue,
         COUNT(*) as orders
-       FROM orders 
-       WHERE order_time BETWEEN ? AND ? 
-         AND status = 'served'
+       FROM orders
+       WHERE order_time BETWEEN ? AND ?
+         AND payment_status = 'paid'
        GROUP BY DATE_FORMAT(order_time, '%Y-%m-%d')
        ORDER BY date DESC`,
       [startDate, endDate]
     ) as any[];
+
+    // Check for manual revenue overrides
+    const manualOverrides = await executeQuery(
+      `SELECT date, manual_revenue, original_revenue
+       FROM revenue_overrides
+       WHERE date BETWEEN ? AND ?`,
+      [startDate, endDate]
+    ) as any[];
+
+    // Create a map of manual overrides
+    const overrideMap = new Map();
+    manualOverrides.forEach(override => {
+      overrideMap.set(override.date, {
+        manual_revenue: override.manual_revenue,
+        original_revenue: override.original_revenue
+      });
+    });
+
+    // Apply manual overrides to daily sales
+    // Remove manual overrides to avoid duplicate rows and overridden revenue for 4 Sep 2025
+    const adjustedDailySales = dailySales;
+
+    // Remove manual overrides for dates that have no orders but have manual revenue
+    // No additional entries added for manual overrides
+
+    // Sort by date again after adding manual overrides
+    adjustedDailySales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     // Query to get all served orders in the date range
     const orders = await executeQuery(
@@ -77,7 +104,7 @@ export async function GET(request: NextRequest) {
     const result = {
       total_revenue: salesSummary[0]?.total_revenue || 0,
       total_orders: salesSummary[0]?.total_orders || 0,
-      daily_sales: dailySales || [],
+      daily_sales: adjustedDailySales || [],
       top_items: topItems
     };
 

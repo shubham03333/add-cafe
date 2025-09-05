@@ -35,6 +35,8 @@ const OrderManagement = () => {
   const [sortBy, setSortBy] = useState('order_time');
   const [sortOrder, setSortOrder] = useState<'ASC' | 'DESC'>('DESC');
   const [todayFilter, setTodayFilter] = useState(false);
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [showOrderDetails, setShowOrderDetails] = useState(false);
 
   const fetchOrders = async (page: number = 1) => {
     setLoading(true);
@@ -114,7 +116,10 @@ const OrderManagement = () => {
   };
 
   const formatDateTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString('en-IN', {
+    // Convert dateString to IST timezone string
+    const date = new Date(dateString);
+    return date.toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
@@ -293,6 +298,10 @@ const OrderManagement = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     <button
+                      onClick={() => {
+                        setSelectedOrder(order);
+                        setShowOrderDetails(true);
+                      }}
                       className="text-red-600 hover:text-red-900 p-1 rounded hover:bg-red-50"
                       title="View Details"
                     >
@@ -363,6 +372,122 @@ const OrderManagement = () => {
                 Next
                 <ChevronRight className="w-4 h-4" />
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Details Modal */}
+      {showOrderDetails && selectedOrder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-semibold text-gray-900">
+                  Order Details - #{selectedOrder.order_number}
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowOrderDetails(false);
+                    setSelectedOrder(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Order Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Order Information</h4>
+                    <div className="space-y-2 text-sm text-gray-900">
+                      <div><span className="font-medium text-gray-700">Order ID:</span> {selectedOrder.id}</div>
+                      <div><span className="font-medium text-gray-700">Order Number:</span> #{selectedOrder.order_number}</div>
+                      <div><span className="font-medium text-gray-700">Order Time:</span> {formatDateTime(selectedOrder.order_time)}</div>
+                      <div>
+                        <span className="font-medium text-gray-700">Status:</span>
+                        <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(selectedOrder.status)}`}>
+                          {selectedOrder.status}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="font-medium text-gray-900 mb-2">Customer Information</h4>
+                    <div className="space-y-2 text-sm text-gray-900">
+                      {selectedOrder.customer_name ? (
+                        <>
+                          <div><span className="font-medium text-gray-700">Name:</span> {selectedOrder.customer_name}</div>
+                          <div><span className="font-medium text-gray-700">Phone:</span> {selectedOrder.customer_phone || 'N/A'}</div>
+                        </>
+                      ) : (
+                        <div><span className="font-medium text-gray-700">Type:</span> Walk-in Customer</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Info */}
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-2">Payment Information</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="text-sm text-gray-900">
+                      <span className="font-medium text-gray-700">Payment Status:</span>
+                      <span className={`ml-2 px-2 py-1 text-xs font-medium rounded-full ${getPaymentStatusColor(selectedOrder.payment_status)}`}>
+                        {selectedOrder.payment_status}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-900">
+                      <span className="font-medium text-gray-700">Payment Mode:</span> {selectedOrder.payment_mode || 'N/A'}
+                    </div>
+                    <div className="text-sm text-gray-900">
+                      <span className="font-medium text-gray-700">Total Amount:</span> ₹{selectedOrder.total}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Order Items */}
+                <div>
+                  <h4 className="font-medium text-gray-900 mb-3">Order Items</h4>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="space-y-3">
+                      {selectedOrder.items?.map((item: any, index: number) => (
+                        <div key={index} className="flex justify-between items-center py-2 border-b border-gray-200 last:border-b-0">
+                          <div className="flex-1">
+                            <div className="font-medium text-gray-900">{item.name}</div>
+                            <div className="text-sm text-gray-600">Quantity: {item.quantity}</div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-medium text-gray-900">₹{item.price}</div>
+                            <div className="text-sm text-gray-600">₹{(item.price * item.quantity).toFixed(2)}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="mt-4 pt-3 border-t border-gray-200">
+                      <div className="flex justify-between items-center text-lg font-semibold text-gray-900">
+                        <span className="text-gray-700">Total Amount:</span>
+                        <span className="text-gray-900">₹{selectedOrder.total}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => {
+                    setShowOrderDetails(false);
+                    setSelectedOrder(null);
+                  }}
+                  className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>

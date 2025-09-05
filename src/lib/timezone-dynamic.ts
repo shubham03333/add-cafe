@@ -39,11 +39,45 @@ export async function getConfiguredTimezone(): Promise<string> {
  */
 export async function getCurrentConfiguredDate(): Promise<Date> {
   const timezone = await getConfiguredTimezone();
-  const offset = TIMEZONE_OFFSETS[timezone] || 5.5; // Default to IST offset
-  
+
+  const timezoneMap: Record<string, string> = {
+    'IST': 'Asia/Kolkata',
+    'UTC': 'UTC',
+    'EST': 'America/New_York',
+    'PST': 'America/Los_Angeles',
+    'CET': 'Europe/Paris',
+  };
+
+  const timeZone = timezoneMap[timezone] || 'Asia/Kolkata';
+
+  // Get current date components in the configured timezone
   const now = new Date();
-  const offsetMs = offset * 60 * 60 * 1000; // Convert hours to milliseconds
-  return new Date(now.getTime() + offsetMs);
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false
+  });
+
+  const parts = formatter.formatToParts(now);
+  const dateParts: any = {};
+  parts.forEach(part => {
+    dateParts[part.type] = part.value;
+  });
+
+  // Create a new Date object in the configured timezone
+  return new Date(
+    parseInt(dateParts.year),
+    parseInt(dateParts.month) - 1, // Month is 0-indexed
+    parseInt(dateParts.day),
+    parseInt(dateParts.hour),
+    parseInt(dateParts.minute),
+    parseInt(dateParts.second)
+  );
 }
 
 /**
