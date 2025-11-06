@@ -84,8 +84,28 @@ export async function getCurrentConfiguredDate(): Promise<Date> {
  * Get today's date string in YYYY-MM-DD format in configured timezone
  */
 export async function getTodayDateString(): Promise<string> {
-  const date = await getCurrentConfiguredDate();
-  return date.toISOString().split('T')[0];
+  const timezone = await getConfiguredTimezone();
+
+  const timezoneMap: Record<string, string> = {
+    'IST': 'Asia/Kolkata',
+    'UTC': 'UTC',
+    'EST': 'America/New_York',
+    'PST': 'America/Los_Angeles',
+    'CET': 'Europe/Paris',
+  };
+
+  const timeZone = timezoneMap[timezone] || 'Asia/Kolkata';
+
+  // Get current date in the configured timezone
+  const now = new Date();
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  });
+
+  return formatter.format(now).replace(/-/g, '-'); // Ensure YYYY-MM-DD format
 }
 
 /**
