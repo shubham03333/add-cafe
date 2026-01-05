@@ -506,6 +506,9 @@ const CafeOrderSystem = () => {
       </head>
       <body>
         <div class="bill">
+          <div class="center">
+            <img src="/adda.png" alt="Adda Cafe Logo" style="width: 48px; height: 48px; margin-bottom: 4px;" />
+          </div>
           <div class="center bold">Adda Cafe</div>
           <div class="center">Order #${order.order_number}</div>
           <div class="center">${new Date().toLocaleString()}</div>
