@@ -1071,78 +1071,108 @@ const CafeOrderSystem = () => {
         </div>
       )}
 
-      {/* Order Detail Popup */}
+      {/* Professional Bill Popup */}
       {viewingOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-5 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto shadow-xl">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Order #{viewingOrder.order_number}</h2>
-              <button
-                onClick={closeOrderPopup}
-                className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
-                title="Close"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="mb-4">
-              <div className="flex justify-between items-center mb-3">
-                <span className="font-semibold text-gray-900">Status:</span>
-                <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
-                  viewingOrder.status === 'preparing'
-                    ? 'bg-yellow-200 text-yellow-900'
-                    : viewingOrder.status === 'ready'
-                    ? 'bg-green-200 text-green-900'
-                    : viewingOrder.status === 'served'
-                    ? 'bg-red-200 text-red-900'
-                    : 'bg-orange-200 text-orange-900'
-                }`}>
-                  {viewingOrder.status}
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center mb-3">
-                <span className="font-semibold text-gray-900">Payment:</span>
-                <span className={`inline-flex items-center gap-2 px-3 py-2 rounded-full text-sm font-semibold shadow-sm transition-all duration-200 ${
-                  viewingOrder.payment_status === 'paid'
-                    ? 'bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 border border-green-200 hover:shadow-md'
-                    : viewingOrder.payment_status === 'failed'
-                    ? 'bg-gradient-to-r from-red-50 to-rose-50 text-red-700 border border-red-200 hover:shadow-md'
-                    : 'bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-200 hover:shadow-md'
-                }`}>
-                  <span className="text-base">
-                    {viewingOrder.payment_status === 'paid' ? '💳' : viewingOrder.payment_status === 'failed' ? '❌' : '⏳'}
-                  </span>
-                  <span>
-                    {viewingOrder.payment_status === 'paid' ? 'Paid' : viewingOrder.payment_status === 'failed' ? 'Failed' : 'Pending'}
-                  </span>
-                </span>
-              </div>
-
-              <div className="flex justify-between items-center mb-3">
-                <span className="font-semibold text-gray-900">Total:</span>
-                <span className="font-bold text-xl text-red-900">₹{viewingOrder.total}</span>
-              </div>
-            </div>
-
-            <div className="mb-4">
-              <h3 className="font-semibold text-gray-900 mb-3">Items:</h3>
-              {viewingOrder.items.map(item => (
-                <div key={item.id} className="flex justify-between items-center py-2 border-b border-gray-200">
-                  <span className="text-gray-900 font-medium">{item.quantity}x {item.name}</span>
-                  <span className="font-medium text-gray-900">₹{item.price * item.quantity}</span>
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-sm w-full max-h-[90vh] overflow-y-auto shadow-2xl border-2 border-gray-300 print:shadow-none print:border-none print:max-w-none print:w-full print:max-h-none print:overflow-visible">
+            {/* Header with Logo and Print/Close Buttons */}
+            <div className="flex justify-between items-center p-4 border-b-2 border-gray-300 print:border-b print:border-black">
+              <div className="flex items-center gap-3">
+                <img src="/logo.png" alt="Restaurant Logo" className="w-12 h-12 print:w-16 print:h-16" />
+                <div className="text-center">
+                  <h1 className="text-lg font-bold text-gray-900 print:text-black print:text-xl">Your Restaurant</h1>
+                  <p className="text-xs text-gray-600 print:text-black">Order Receipt</p>
                 </div>
-              ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => window.print()}
+                  className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors print:hidden"
+                  title="Print Bill"
+                >
+                  🖨️
+                </button>
+                <button
+                  onClick={closeOrderPopup}
+                  className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded print:hidden"
+                  title="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            <div className="border-t border-gray-200 pt-4">
-              <button
-                onClick={closeOrderPopup}
-                className="w-full px-6 py-3 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
-              >
-                Close
-              </button>
+            {/* Bill Content */}
+            <div className="p-4 print:p-2">
+              {/* Order Header */}
+              <div className="text-center mb-4 print:mb-2">
+                <div className="text-2xl font-bold text-gray-900 print:text-black print:text-3xl">BILL</div>
+                <div className="text-sm text-gray-600 print:text-black">Order #{viewingOrder.order_number}</div>
+                <div className="text-xs text-gray-500 print:text-black">{new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</div>
+              </div>
+
+              {/* Order Status */}
+              <div className="flex justify-center mb-4 print:mb-2">
+                <span className={`px-3 py-1 rounded-full text-sm font-semibold print:text-black print:border print:border-black ${
+                  viewingOrder.status === 'preparing'
+                    ? 'bg-yellow-200 text-yellow-900 print:bg-white'
+                    : viewingOrder.status === 'ready'
+                    ? 'bg-green-200 text-green-900 print:bg-white'
+                    : viewingOrder.status === 'served'
+                    ? 'bg-red-200 text-red-900 print:bg-white'
+                    : 'bg-orange-200 text-orange-900 print:bg-white'
+                }`}>
+                  {viewingOrder.status.toUpperCase()}
+                </span>
+              </div>
+
+              {/* Items List */}
+              <div className="border-t border-b border-gray-300 py-2 mb-4 print:border-black print:py-1 print:mb-2">
+                <div className="space-y-1 print:space-y-0">
+                  {viewingOrder.items.map(item => (
+                    <div key={item.id} className="flex justify-between items-center py-1 print:py-0.5">
+                      <div className="flex-1">
+                        <span className="text-gray-900 font-medium print:text-black text-sm">{item.quantity}x {item.name}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-gray-900 font-medium print:text-black text-sm">₹{item.price * item.quantity}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Total */}
+              <div className="border-t-2 border-gray-300 pt-2 print:border-black print:pt-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-bold text-gray-900 print:text-black print:text-xl">TOTAL</span>
+                  <span className="text-lg font-bold text-red-900 print:text-black print:text-xl">₹{viewingOrder.total}</span>
+                </div>
+              </div>
+
+              {/* Payment Status */}
+              <div className="mt-3 text-center print:mt-1">
+                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-semibold print:text-black print:border print:border-black ${
+                  viewingOrder.payment_status === 'paid'
+                    ? 'bg-green-100 text-green-800 print:bg-white'
+                    : viewingOrder.payment_status === 'failed'
+                    ? 'bg-red-100 text-red-800 print:bg-white'
+                    : 'bg-blue-100 text-blue-800 print:bg-white'
+                }`}>
+                  <span className="text-sm">
+                    {viewingOrder.payment_status === 'paid' ? '✓' : viewingOrder.payment_status === 'failed' ? '✗' : '~'}
+                  </span>
+                  <span className="text-sm">
+                    {viewingOrder.payment_status === 'paid' ? 'PAID' : viewingOrder.payment_status === 'failed' ? 'FAILED' : 'PENDING'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Footer */}
+              <div className="mt-4 text-center text-xs text-gray-500 print:text-black print:mt-2">
+                <p>Thank you for your business!</p>
+                <p>Please visit again</p>
+              </div>
             </div>
           </div>
         </div>
