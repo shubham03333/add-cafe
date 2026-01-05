@@ -455,6 +455,101 @@ const CafeOrderSystem = () => {
     setOrderToServe(null);
   };
 
+  const printBill = (order: Order) => {
+  const printWindow = window.open('', '_blank', 'width=400,height=600');
+
+  if (!printWindow) return;
+
+  printWindow.document.write(`
+    <html>
+      <head>
+        <title>Bill</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body {
+            margin: 0;
+            padding: 0;
+            font-family: monospace;
+            width: 80mm;
+          }
+
+          .bill {
+            padding: 8px;
+            font-size: 12px;
+            color: #000;
+          }
+
+          .center {
+            text-align: center;
+          }
+
+          .row {
+            display: flex;
+            justify-content: space-between;
+            margin: 2px 0;
+          }
+
+          .bold {
+            font-weight: bold;
+          }
+
+          .divider {
+            border-top: 1px dashed #000;
+            margin: 6px 0;
+          }
+
+          @page {
+            size: 80mm auto;
+            margin: 0;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="bill">
+          <div class="center bold">Adda Cafe</div>
+          <div class="center">Order #${order.order_number}</div>
+          <div class="center">${new Date().toLocaleString()}</div>
+
+          <div class="divider"></div>
+
+          ${order.items
+            .map(
+              i => `
+                <div class="row">
+                  <span>${i.quantity} x ${i.name}</span>
+                  <span>₹${i.price * i.quantity}</span>
+                </div>
+              `
+            )
+            .join('')}
+
+          <div class="divider"></div>
+
+          <div class="row bold">
+            <span>TOTAL</span>
+            <span>₹${order.total}</span>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="center">Thank you!</div>
+          <div class="center">Visit again</div>
+        </div>
+
+        <script>
+          setTimeout(() => {
+            window.print();
+            window.close();
+          }, 300);
+        </script>
+      </body>
+    </html>
+  `);
+
+  printWindow.document.close();
+};
+
+
   const handlePaymentModeSelection = async (paymentMode: 'cash' | 'online') => {
     if (!orderToServe) return;
 
@@ -1073,8 +1168,8 @@ const CafeOrderSystem = () => {
 
       {/* Professional Bill Popup */}
       {viewingOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 print:block print:bg-white print:p-0 print:m-0">
-          <div className="bg-white rounded-lg max-w-sm w-full max-h-[90vh] overflow-y-auto shadow-2xl border-2 border-gray-300 print:shadow-none print:border-none print:max-w-none print:w-full print:max-h-none print:overflow-visible print:p-0 print:m-0 print:min-h-screen print:flex print:flex-col">
+        <div id="print-bill-overlay" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 print:block print:bg-white print:p-0 print:m-0">
+          <div id="print-bill-content" className="bg-white rounded-lg max-w-sm w-full max-h-[90vh] overflow-y-auto shadow-2xl border-2 border-gray-300 print:shadow-none print:border-none print:max-w-none print:w-full print:max-h-none print:overflow-visible print:p-0 print:m-0 print:min-h-screen print:flex print:flex-col">
             {/* Logo at Top */}
             <div className="flex justify-center py-2 px-4 border-b-2 border-gray-300 print:border-b print:border-black print:py-1 print:px-2">
               <img src="/adda.png" alt="Restaurant Logo" className="w-12 h-12 print:w-16 print:h-16" />
@@ -1126,7 +1221,7 @@ const CafeOrderSystem = () => {
               {/* Action Buttons at Bottom */}
               <div className="flex gap-3 justify-center print:hidden mt-2">
                 <button
-                  onClick={() => window.print()}
+                  onClick={() => printBill(viewingOrder)}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
                   title="Print Bill"
                 >

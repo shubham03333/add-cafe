@@ -1,0 +1,68 @@
+/* Minimal Print Styles for Cafe Bill */
+
+@media print {
+
+  /* Hide non-printable UI */
+  body * {
+    display: none !important;
+  }
+
+  /* Show only bill */
+  #print-bill,
+  #print-bill * {
+    display: block !important;
+  }
+
+  #print-bill {
+    position: static !important;
+    width: 80mm;
+    margin: 0;
+    padding: 0;
+    background: white;
+    color: black;
+  }
+
+  /* Text clarity */
+  h1, h2, h3, span, p, div {
+    color: black !important;
+  }
+
+  /* Remove shadows, radius */
+  * {
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+
+  /* Hide buttons */
+  button {
+    display: none !important;
+  }
+
+  img {
+    max-width: 48px;
+    height: auto;
+  }
+}
+
+
+/* Page break settings - thermal printer friendly */
+@page {
+  size: 80mm 297mm;
+  margin: 0;
+}
+
+/* Force single page layout */
+html, body {
+  height: auto !important;
+  overflow: visible !important;
+}
+
+/* Prevent page breaks */
+#root,
+#root *,
+#root *::before,
+#root *::after {
+  page-break-inside: avoid !important;
+  page-break-before: avoid !important;
+  page-break-after: avoid !important;
+}
