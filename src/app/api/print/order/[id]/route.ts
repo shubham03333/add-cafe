@@ -45,22 +45,21 @@ export async function GET(
   // 3️⃣ Build print commands dynamically
   const commands: PrintCommand[] = [];
 
-  // Add header text (printer doesn't support images)
-  commands.push({
-    type: 0,
-    content: 'ADDA CAFE',
-    bold: 1,
-    align: 1,
-    format: 2
-  });
+  // Add header text with ASCII logo (printer doesn't support images)
+commands.push({
+  type: 0,
+  content: 'ADDA CAFE',
+  bold: 1,
+  align: 1,
+  format: 2
+});
 
-  // commands.push({
-  //   type: 0,
-  //   content: 'Adda Cafe',
-  //   bold: 1,
-  //   align: 1,
-  //   format: 2
-  // });
+commands.push({
+  type: 0,
+  content: 'Pure Veg • Fresh & Tasty',
+  align: 1
+});
+
 
   commands.push({
     type: 0,

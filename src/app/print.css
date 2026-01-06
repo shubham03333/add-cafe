@@ -52,8 +52,10 @@
   }
 
   img {
-    max-width: 48px;
-    height: auto;
+    max-width: 48px !important;
+    height: auto !important;
+    display: block !important;
+    visibility: visible !important;
   }
 }
 
