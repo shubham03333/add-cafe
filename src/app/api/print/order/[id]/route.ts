@@ -1,66 +1,113 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest } from 'next/server';
 import { executeQuery } from '@/lib/db';
 
-interface PrintCommand {
-  type: 'text' | 'line' | 'cut';
-  content?: string;
-  align?: 'left' | 'center' | 'right';
-  bold?: boolean;
-}
+type PrintCommand = {
+  type: number;       // 0 = text
+  content: string;
+  bold?: number;
+  align?: number;     // 0 left, 1 center, 2 right
+  format?: number;   // optional
+};
 
-function generatePrintData(order: any, items: any[]): { printData: PrintCommand[] } {
-  const printData: PrintCommand[] = [
-    { type: 'text', content: 'Cafe Order System', align: 'center', bold: true },
-    { type: 'text', content: `Order #${order.order_number}`, align: 'center' },
-    { type: 'text', content: `Date: ${new Date(order.order_time).toLocaleString()}`, align: 'left' },
-    { type: 'line' },
-  ];
+export async function GET(
+  req: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  const orderId = params.id;
 
-  items.forEach(item => {
-    printData.push({ type: 'text', content: `${item.name} x${item.quantity}`, align: 'left' });
-    printData.push({ type: 'text', content: `$${item.price * item.quantity}`, align: 'right' });
-  });
+  // 1️⃣ Fetch order
+  const orderRows = await executeQuery(
+    'SELECT order_number, order_time, total, items FROM orders WHERE id = ?',
+    [orderId]
+  ) as any[];
 
-  printData.push({ type: 'line' });
-  printData.push({ type: 'text', content: `Total: $${order.total}`, align: 'right', bold: true });
-  printData.push({ type: 'cut' });
-
-  return { printData };
-}
-
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
-
-  try {
-    const orderQuery = 'SELECT * FROM orders WHERE id = ?';
-    const orderResult: any[] = await executeQuery(orderQuery, [id]) as any[];
-
-    if (orderResult.length === 0) {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
-    }
-
-    const order = orderResult[0];
-
-    // Parse items if it's a string
-    let items = order.items;
-    if (typeof items === 'string') {
-      try {
-        items = JSON.parse(items);
-      } catch (parseError) {
-        console.warn('Failed to parse items JSON:', items);
-        items = [];
-      }
-    }
-
-    // Generate printer-compatible JSON
-    const printData = generatePrintData(order, items);
-
-    return NextResponse.json(printData);
-  } catch (error) {
-    console.error('Error fetching order for print:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch order' },
-      { status: 500 }
+  if (!orderRows || orderRows.length === 0) {
+    return new Response(
+      JSON.stringify({ "0": { type: 0, content: "Order not found" } }),
+      { headers: { 'Content-Type': 'application/json' } }
     );
   }
+
+  const order = orderRows[0];
+
+  // 2️⃣ Parse items safely
+  let items: any[] = [];
+  try {
+    items = typeof order.items === 'string'
+      ? JSON.parse(order.items)
+      : order.items;
+  } catch {
+    items = [];
+  }
+
+  // 3️⃣ Build print commands dynamically
+  const commands: PrintCommand[] = [];
+
+  commands.push({
+    type: 0,
+    content: 'Adda Cafe',
+    bold: 1,
+    align: 1,
+    format: 2
+  });
+
+  commands.push({
+    type: 0,
+    content: `Order #${order.order_number}`,
+    align: 1
+  });
+
+  commands.push({
+    type: 0,
+    content: new Date(order.order_time).toLocaleString(),
+    align: 1
+  });
+
+  commands.push({
+    type: 0,
+    content: '------------------------------',
+    align: 0
+  });
+
+  items.forEach((item) => {
+    commands.push({
+      type: 0,
+      content: `${item.quantity}x ${item.name} ₹${item.price * item.quantity}`,
+      align: 0
+    });
+  });
+
+  commands.push({
+    type: 0,
+    content: '------------------------------',
+    align: 0
+  });
+
+  commands.push({
+    type: 0,
+    content: `TOTAL ₹${Number(order.total).toFixed(2)}`,
+    bold: 1,
+    align: 2,
+    format: 2
+  });
+
+  commands.push({
+    type: 0,
+    content: 'Thank you! Visit again',
+    align: 1
+  });
+
+  // 4️⃣ Convert ARRAY → OBJECT (THIS IS THE MAGIC)
+  const printerJson: Record<string, PrintCommand> = {};
+  commands.forEach((cmd, index) => {
+    printerJson[index.toString()] = cmd;
+  });
+
+  // 5️⃣ Return RAW JSON (no wrappers)
+  return new Response(JSON.stringify(printerJson), {
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store'
+    }
+  });
 }

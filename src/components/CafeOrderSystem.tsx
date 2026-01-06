@@ -466,11 +466,29 @@ const CafeOrderSystem = () => {
         <title>Bill</title>
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
+   body {
+  margin: 0;
+  padding: 0;
+  font-family: monospace;
+  width: 58mm;
+}
+
+.bill {
+  padding: 6px;
+  font-size: 12px;
+  color: black;
+}
+
+          @page {
+            size: 58mm auto;
+            margin: 0;
+          }
+
           body {
             margin: 0;
             padding: 0;
             font-family: monospace;
-            width: 80mm;
+            width: 58mm;
           }
 
           .bill {
@@ -497,17 +515,12 @@ const CafeOrderSystem = () => {
             border-top: 1px dashed #000;
             margin: 6px 0;
           }
-
-          @page {
-            size: 80mm auto;
-            margin: 0;
-          }
         </style>
       </head>
       <body>
         <div class="bill">
           <div class="center">
-            <img src="/adda.png" alt="Adda Cafe Logo" style="width: 48px; height: 48px; margin-bottom: 4px;" />
+            
           </div>
           <div class="center bold">Adda Cafe</div>
           <div class="center">Order #${order.order_number}</div>
@@ -540,10 +553,13 @@ const CafeOrderSystem = () => {
         </div>
 
         <script>
-          setTimeout(() => {
-            window.print();
-            window.close();
-          }, 300);
+         window.onload = () => {
+  setTimeout(() => {
+    window.print();
+    window.close();
+  }, 500);
+};
+
         </script>
       </body>
     </html>
@@ -1175,7 +1191,7 @@ const CafeOrderSystem = () => {
           <div id="print-bill-content" className="bg-white rounded-lg max-w-sm w-full max-h-[90vh] overflow-y-auto shadow-2xl border-2 border-gray-300 print:shadow-none print:border-none print:max-w-none print:w-full print:max-h-none print:overflow-visible print:p-0 print:m-0 print:min-h-screen print:flex print:flex-col">
             {/* Logo at Top */}
             <div className="flex justify-center py-2 px-4 border-b-2 border-gray-300 print:border-b print:border-black print:py-1 print:px-2">
-              <img src="/adda.png" alt="Restaurant Logo" className="w-12 h-12 print:w-16 print:h-16" />
+              {/* <img src="/adda.png" alt="Restaurant Logo" className="w-12 h-12 print:w-16 print:h-16" /> */}
             </div>
 
             {/* Bill Content */}
@@ -1223,17 +1239,20 @@ const CafeOrderSystem = () => {
 
               {/* Action Buttons at Bottom */}
               <div className="flex gap-3 justify-center print:hidden mt-2">
-                <button
-                  onClick={() => {
-                    const domain = process.env.NEXT_PUBLIC_PRODUCTION_DOMAIN || window.location.origin;
-                    const printUrl = `my.bluetoothprint.scheme://${domain}/api/print/order/${viewingOrder.id}`;
-                    window.location.href = printUrl;
-                  }}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
-                  title="Print Bill via Bluetooth Printer"
-                >
-                  🖨️ Bluetooth Print
-                </button>
+<button
+  onClick={() => {
+    const baseUrl =
+      process.env.NEXT_PUBLIC_PRODUCTION_DOMAIN ??
+      window.location.origin;
+
+    window.location.href =
+      `my.bluetoothprint.scheme://${baseUrl}/api/print/order/${viewingOrder.id}`;
+  }}
+  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium"
+>
+  🖨️ Print
+</button>
+
                 <button
                   onClick={() => printBill(viewingOrder)}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
