@@ -8,18 +8,31 @@
   }
 
   /* Show only bill */
-  #print-bill,
-  #print-bill * {
+  #print-bill-content,
+  #print-bill-content * {
     display: block !important;
   }
 
-  #print-bill {
+  #print-bill-overlay {
+    display: block !important;
+    position: static !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  #print-bill-content {
     position: static !important;
     width: 80mm;
     margin: 0;
     padding: 0;
     background: white;
     color: black;
+    box-shadow: none !important;
+    border: none !important;
+    max-width: none !important;
+    max-height: none !important;
+    overflow: visible !important;
   }
 
   /* Text clarity */

@@ -1191,7 +1191,7 @@ const CafeOrderSystem = () => {
           <div id="print-bill-content" className="bg-white rounded-lg max-w-sm w-full max-h-[90vh] overflow-y-auto shadow-2xl border-2 border-gray-300 print:shadow-none print:border-none print:max-w-none print:w-full print:max-h-none print:overflow-visible print:p-0 print:m-0 print:min-h-screen print:flex print:flex-col">
             {/* Logo at Top */}
             <div className="flex justify-center py-2 px-4 border-b-2 border-gray-300 print:border-b print:border-black print:py-1 print:px-2">
-              {/* <img src="/adda.png" alt="Restaurant Logo" className="w-12 h-12 print:w-16 print:h-16" /> */}
+              <img src="/adda.png" alt="Restaurant Logo" className="w-12 h-12 print:w-16 print:h-16" />
             </div>
 
             {/* Bill Content */}
@@ -1253,13 +1253,13 @@ const CafeOrderSystem = () => {
   🖨️ Print
 </button>
 
-                <button
+                {/* <button
                   onClick={() => printBill(viewingOrder)}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
                   title="Print Bill (Browser)"
                 >
                   🖨️ Browser Print
-                </button>
+                </button> */}
                 <button
                   onClick={closeOrderPopup}
                   className="flex-1 px-4 py-2 bg-gray-600 text-white rounded-lg font-medium hover:bg-gray-700 transition-colors"

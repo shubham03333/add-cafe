@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 import { executeQuery } from '@/lib/db';
+import fs from 'fs';
+import path from 'path';
 
 type PrintCommand = {
   type: number;       // 0 = text
@@ -43,13 +45,22 @@ export async function GET(
   // 3️⃣ Build print commands dynamically
   const commands: PrintCommand[] = [];
 
+  // Add header text (printer doesn't support images)
   commands.push({
     type: 0,
-    content: 'Adda Cafe',
+    content: 'ADDA CAFE',
     bold: 1,
     align: 1,
     format: 2
   });
+
+  // commands.push({
+  //   type: 0,
+  //   content: 'Adda Cafe',
+  //   bold: 1,
+  //   align: 1,
+  //   format: 2
+  // });
 
   commands.push({
     type: 0,
@@ -59,7 +70,7 @@ export async function GET(
 
   commands.push({
     type: 0,
-    content: new Date(order.order_time).toLocaleString(),
+    content: new Date().toLocaleString(),
     align: 1
   });
 
@@ -69,10 +80,26 @@ export async function GET(
     align: 0
   });
 
+  // Define fixed width for thermal printer (typically 32 characters)
+  const LINE_WIDTH = 32;
+
   items.forEach((item) => {
+    const itemText = `${item.quantity}x ${item.name}`;
+    const priceText = `₹${item.price * item.quantity}`;
+
+    // Ensure item text doesn't exceed available space for prices
+    const maxItemLength = LINE_WIDTH - priceText.length - 1; // -1 for space
+    const truncatedItemText = itemText.length > maxItemLength
+      ? itemText.substring(0, maxItemLength - 3) + '...'
+      : itemText;
+
+    // Create line with item text left-aligned and price right-aligned
+    const spaces = LINE_WIDTH - truncatedItemText.length - priceText.length;
+    const line = truncatedItemText + ' '.repeat(Math.max(1, spaces)) + priceText;
+
     commands.push({
       type: 0,
-      content: `${item.quantity}x ${item.name} ₹${item.price * item.quantity}`,
+      content: line,
       align: 0
     });
   });
