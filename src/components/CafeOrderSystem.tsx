@@ -1224,11 +1224,22 @@ const CafeOrderSystem = () => {
               {/* Action Buttons at Bottom */}
               <div className="flex gap-3 justify-center print:hidden mt-2">
                 <button
+                  onClick={() => {
+                    const domain = process.env.NEXT_PUBLIC_PRODUCTION_DOMAIN || window.location.origin;
+                    const printUrl = `my.bluetoothprint.scheme://${domain}/api/print/order/${viewingOrder.id}`;
+                    window.location.href = printUrl;
+                  }}
+                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+                  title="Print Bill via Bluetooth Printer"
+                >
+                  🖨️ Bluetooth Print
+                </button>
+                <button
                   onClick={() => printBill(viewingOrder)}
                   className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
-                  title="Print Bill"
+                  title="Print Bill (Browser)"
                 >
-                  🖨️ Print
+                  🖨️ Browser Print
                 </button>
                 <button
                   onClick={closeOrderPopup}
