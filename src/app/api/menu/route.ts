@@ -1,103 +1,50 @@
-import { NextResponse } from 'next/server';
-import { db } from '@/lib/db';
+import { NextRequest, NextResponse } from 'next/server';
+import { executeQuery } from '@/lib/db';
+import { cache, CACHE_KEYS, CACHE_TTL } from '@/lib/cache';
 
-export async function GET() {
-  try {
-    if (!db) {
-      throw new Error('Database not configured');
-    }
-
-    const [rows] = await db.execute(
-      'SELECT * FROM menu_items WHERE is_available = TRUE ORDER BY position IS NULL, position, category, name'
-    );
-    return NextResponse.json(rows);
-  } catch (error) {
-    console.error('Error fetching menu:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch menu' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(request: Request) {
-  try {
-    const newItem = await request.json();
-    
-    const { name, price, category, is_available } = newItem;
-
-    if (!db) {
-      throw new Error('Database not configured');
-    }
-
-    const [result] = await db.execute(
-      'INSERT INTO menu_items (name, price, category, is_available) VALUES (?, ?, ?, ?)',
-      [name, price, category, is_available]
-    );
-
-    // Type assertion for the result to access insertId
-    const insertResult = result as any;
-    return NextResponse.json({ success: true, id: insertResult.insertId });
-  } catch (error) {
-    console.error('Error creating menu item:', error);
-    return NextResponse.json(
-      { error: 'Failed to create menu item' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(request: Request) {
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const category = searchParams.get('category');
+    const availableOnly = searchParams.get('availableOnly') === 'true';
 
-    if (!id) {
-      return NextResponse.json(
-        { error: 'Menu item ID is required' },
-        { status: 400 }
-      );
+    // Generate cache key based on parameters
+    let cacheKey = CACHE_KEYS.MENU_ITEMS;
+    if (category) {
+      cacheKey = CACHE_KEYS.MENU_ITEMS_BY_CATEGORY(category);
+    }
+    if (availableOnly) {
+      cacheKey += '_available';
     }
 
-    if (!db) {
-      throw new Error('Database not configured');
+    // Try to get from cache first
+    let menuItems = cache.get(cacheKey);
+    if (!menuItems) {
+      // Build query based on parameters
+      let query = 'SELECT * FROM menu_items WHERE 1=1';
+      const params: any[] = [];
+
+      if (category) {
+        query += ' AND category = ?';
+        params.push(category);
+      }
+
+      if (availableOnly) {
+        query += ' AND is_available = 1';
+      }
+
+      query += ' ORDER BY position ASC';
+
+      // Execute query and cache result
+      menuItems = await executeQuery(query, params);
+      cache.set(cacheKey, menuItems, CACHE_TTL.MENU_ITEMS * 1000); // Convert to milliseconds
     }
 
-    await db.execute(
-      'DELETE FROM menu_items WHERE id = ?',
-      [id]
-    );
-
-    return NextResponse.json({ success: true });
+    return NextResponse.json(menuItems);
   } catch (error) {
-    console.error('Error deleting menu item:', error);
+    console.error('Error fetching menu items:', error);
     return NextResponse.json(
-      { error: 'Failed to delete menu item' },
-      { status: 500 }
-    );
-  }
-}
-
-export async function PUT(request: Request) {
-  try {
-    const updatedItem = await request.json();
-
-    const { id, name, price, category, is_available } = updatedItem;
-
-    if (!db) {
-      throw new Error('Database not configured');
-    }
-
-    await db.execute(
-      'UPDATE menu_items SET name = ?, price = ?, category = ?, is_available = ? WHERE id = ?',
-      [name, price, category, is_available, id]
-    );
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error('Error updating menu item:', error);
-    return NextResponse.json(
-      { error: 'Failed to update menu item' },
+      { error: 'Failed to fetch menu items' },
       { status: 500 }
     );
   }

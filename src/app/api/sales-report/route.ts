@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
+import { logMemoryUsage } from '@/lib/memory-monitor';
 
 export async function GET(request: NextRequest) {
   try {
+    logMemoryUsage('/api/sales-report');
+
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
@@ -66,40 +69,27 @@ export async function GET(request: NextRequest) {
     // Sort by date again after adding manual overrides
     adjustedDailySales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    // Query to get all served orders in the date range
-    const orders = await executeQuery(
-      `SELECT items FROM orders WHERE order_time BETWEEN ? AND ? AND status = 'served'`,
-      [startDate, endDate]
-    ) as any[];
-
-    // Aggregate item quantities across all orders
-    const itemSalesMap: Record<string, { name: string; quantity: number }> = {};
-
-    orders.forEach(order => {
-      let items;
-      try {
-        items = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
-      } catch (error) {
-        console.warn('Failed to parse items for order:', order.items);
-        return;
-      }
-      if (Array.isArray(items)) {
-        items.forEach((item: any) => {
-          if (item.name && item.quantity) {
-            if (itemSalesMap[item.name]) {
-              itemSalesMap[item.name].quantity += item.quantity;
-            } else {
-              itemSalesMap[item.name] = { name: item.name, quantity: item.quantity };
-            }
-          }
-        });
-      }
-    });
-
-    // Convert to array and sort by quantity descending
-    const topItems = Object.values(itemSalesMap)
-      .sort((a, b) => b.quantity - a.quantity)
-      .slice(0, 10);
+    // Optimized query: Aggregate item sales directly in database using JSON functions
+    // This replaces the in-memory processing that was loading all orders into memory
+    const topItems = await executeQuery(`
+      SELECT
+        JSON_UNQUOTE(JSON_EXTRACT(item.value, '$.name')) as name,
+        SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(item.value, '$.quantity')) AS UNSIGNED)) as quantity
+      FROM orders o
+      CROSS JOIN JSON_TABLE(
+        o.items,
+        '$[*]' COLUMNS (
+          value JSON PATH '$'
+        )
+      ) as item
+      WHERE o.order_time BETWEEN ? AND ?
+        AND o.status = 'served'
+        AND JSON_VALID(o.items) = 1
+      GROUP BY JSON_UNQUOTE(JSON_EXTRACT(item.value, '$.name'))
+      HAVING name IS NOT NULL AND name != ''
+      ORDER BY quantity DESC
+      LIMIT 10
+    `, [startDate, endDate]) as any[];
 
     const result = {
       total_revenue: salesSummary[0]?.total_revenue || 0,

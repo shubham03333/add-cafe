@@ -132,17 +132,19 @@ const CafeOrderSystem = () => {
     const response = await fetch('/api/orders'); // Remove ?includeServed=true to only get non-served orders
     if (!response.ok) throw new Error('Failed to fetch orders');
     const data = await response.json();
-    setOrders(data);
-    
+    // Handle paginated response structure
+    const ordersArray = Array.isArray(data.orders) ? data.orders : Array.isArray(data) ? data : []; // Ensure it's always an array
+    setOrders(ordersArray);
+
     // Calculate pending orders count (orders that are not served)
-    const pendingOrders = data.filter((order: Order) => order.status !== 'served');
+    const pendingOrders = ordersArray.filter((order: Order) => order.status !== 'served');
     setPendingOrdersCount(pendingOrders.length);
-    
+
     // Fetch daily sales from API instead of calculating locally
     await fetchDailySales();
-    
+
     setLoading(false);
-    
+
     if (ordersContainerRef.current) {
         ordersContainerRef.current.scrollTop = scrollPosition; // Restore scroll position
     }
@@ -423,9 +425,11 @@ const CafeOrderSystem = () => {
       const response = await fetch('/api/orders?includeServed=true');
       if (!response.ok) throw new Error('Failed to fetch served orders');
       const data = await response.json();
-      // Filter only served orders and get the last 5
-      const served = data.filter((order: Order) => order.status === 'served');
-      setServedOrders(served.slice(-5).reverse()); // Get last 5 and reverse to show most recent first
+      // Handle paginated response structure
+      const ordersArray = Array.isArray(data.orders) ? data.orders : Array.isArray(data) ? data : [];
+      // Filter only served orders and get the most recent 5
+      const served = ordersArray.filter((order: Order) => order.status === 'served');
+      setServedOrders(served.slice(0, 5)); // Get first 5 (most recent) served orders
     } catch (err) {
       setError('Failed to fetch served orders');
       console.error(err);
@@ -1244,7 +1248,6 @@ const CafeOrderSystem = () => {
     const baseUrl =
       process.env.NEXT_PUBLIC_PRODUCTION_DOMAIN ??
       window.location.origin;
-
     window.location.href =
       `my.bluetoothprint.scheme://${baseUrl}/api/print/order/${viewingOrder.id}`;
   }}

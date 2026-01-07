@@ -4,47 +4,98 @@ import { executeQuery } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 import { CreateOrderRequest, Order } from '@/types';
 
-// GET all orders with optional status filtering
+// GET orders with pagination (default) or all orders if explicitly requested
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get('status') || '';
-    
     const includeServed = searchParams.get('includeServed') === 'true';
-    let query = 'SELECT * FROM orders';
+    const loadAll = searchParams.get('loadAll') === 'true'; // Explicit flag to load all orders
+
+    // If loadAll is true, use the old behavior (for backward compatibility)
+    if (loadAll) {
+      let query = 'SELECT * FROM orders';
+      let whereClauses = [];
+
+      if (!includeServed) {
+          whereClauses.push("status != 'served'");
+      }
+
+      const validStatuses = ['pending', 'preparing', 'ready', 'served', 'cancelled'];
+      if (statusFilter) {
+          const statuses = statusFilter.split(',').filter(status => validStatuses.includes(status.trim()));
+          if (statuses.length > 0) {
+              whereClauses.push(`status IN ('${statuses.join("', '")}')`);
+          }
+      }
+
+      if (whereClauses.length > 0) {
+          query += ' WHERE ' + whereClauses.join(' AND ');
+      }
+      query += ' ORDER BY order_time ASC LIMIT 1000'; // Add reasonable limit even for loadAll
+
+      const rows = await executeQuery(query) as any[];
+      console.log(`[ORDERS API] Fetching ALL orders - includeServed: ${includeServed}, statusFilter: ${statusFilter}`);
+      console.log(`[ORDERS API] Found ${rows.length} orders`);
+
+      const orders = rows.map(row => {
+        let itemsData = row.items;
+        if (typeof row.items === 'string') {
+          try {
+            itemsData = JSON.parse(row.items);
+          } catch (parseError) {
+            console.warn('Failed to parse items JSON:', row.items);
+            itemsData = [];
+          }
+        }
+        return { ...row, items: itemsData };
+      });
+
+      return NextResponse.json(orders);
+    }
+
+    // Default: Use pagination
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50'))); // Max 100 per page
+    const offset = (page - 1) * limit;
+
     let whereClauses = [];
-    
+    const params: any[] = [];
+
     if (!includeServed) {
         whereClauses.push("status != 'served'");
     }
-    
+
     const validStatuses = ['pending', 'preparing', 'ready', 'served', 'cancelled'];
     if (statusFilter) {
         const statuses = statusFilter.split(',').filter(status => validStatuses.includes(status.trim()));
         if (statuses.length > 0) {
             whereClauses.push(`status IN ('${statuses.join("', '")}')`);
+            // Note: Using string interpolation for IN clause as prepared statements don't support dynamic IN lists well
         }
     }
-    
-    if (whereClauses.length > 0) {
-        query += ' WHERE ' + whereClauses.join(' AND ');
-    }
-    query += ' ORDER BY order_time ASC';
 
-    const rows = await executeQuery(query) as any[];
-    console.log(`[ORDERS API] Fetching orders - includeServed: ${includeServed}, statusFilter: ${statusFilter}`);
-    console.log(`[ORDERS API] Query: ${query}`);
-    console.log(`[ORDERS API] Found ${rows.length} orders`);
+    let whereClause = whereClauses.length > 0 ? ' WHERE ' + whereClauses.join(' AND ') : '';
 
-    // Log order statuses for debugging
-    const statusCounts = rows.reduce((acc, order) => {
-      acc[order.status] = (acc[order.status] || 0) + 1;
-      return acc;
-    }, {});
-    console.log(`[ORDERS API] Status breakdown:`, statusCounts);
+    // Get total count
+    const countQuery = `SELECT COUNT(*) as total FROM orders${whereClause}`;
+    const countResult = await executeQuery(countQuery) as any[];
+    const totalOrders = countResult[0]?.total || 0;
+    const totalPages = Math.ceil(totalOrders / limit);
+
+    // Get paginated orders
+    const ordersQuery = `
+      SELECT id, order_number, items, total, status, payment_status, payment_mode, order_time
+      FROM orders${whereClause}
+      ORDER BY order_time DESC
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+
+    const rows = await executeQuery(ordersQuery) as any[];
+    console.log(`[ORDERS API] Fetching paginated orders - page: ${page}, limit: ${limit}, statusFilter: ${statusFilter}`);
+    console.log(`[ORDERS API] Found ${rows.length} orders (total: ${totalOrders})`);
 
     const orders = rows.map(row => {
-      // Check if items is already an object or needs parsing
       let itemsData = row.items;
       if (typeof row.items === 'string') {
         try {
@@ -54,14 +105,25 @@ export async function GET(request: NextRequest) {
           itemsData = [];
         }
       }
-
       return {
         ...row,
-        items: itemsData
+        items: itemsData,
+        payment_status: row.payment_status || 'pending',
+        payment_mode: row.payment_mode || null
       };
     });
 
-    return NextResponse.json(orders);
+    return NextResponse.json({
+      orders,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalOrders,
+        limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
+      }
+    });
   } catch (error) {
     console.error('Error fetching orders:', error);
     return NextResponse.json(

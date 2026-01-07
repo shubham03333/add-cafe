@@ -11,8 +11,10 @@ const getDbConfig = () => {
     port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 3306,
     ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
     waitForConnections: true,
-    connectionLimit: 10,
-    queueLimit: 0
+    connectionLimit: 2,
+    queueLimit: 0,
+    acquireTimeout: 60000,
+    timeout: 60000
   };
 
   // Debug environment variables in development
