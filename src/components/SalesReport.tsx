@@ -580,8 +580,9 @@ const SalesReport = () => {
                 {orderDetails.order_details && orderDetails.order_details.length > 0 ? (
                   <div>
                     <h4 className="font-medium text-gray-900 mb-3">Dish-wise Breakdown:</h4>
-                    <div className="overflow-x-auto">
-                      <table className="w-full border-collapse">
+                    <div className="overflow-x-auto -mx-4 sm:mx-0">
+                      <div className="inline-block min-w-full align-middle">
+                        <table className="min-w-full border-collapse">
                         <thead>
                           <tr className="bg-gray-100">
                             <th className="border border-gray-300 px-4 py-2 text-left font-medium text-gray-900">Dish Name</th>
@@ -609,6 +610,7 @@ const SalesReport = () => {
                           </tr>
                         </tfoot>
                       </table>
+                      </div>
                     </div>
                   </div>
                 ) : (

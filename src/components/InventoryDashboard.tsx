@@ -280,8 +280,9 @@ const fetchInventory = async (isBackgroundRefresh = false) => {
               </button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full">
+            <div className="overflow-x-auto -mx-4 sm:mx-0">
+              <div className="inline-block min-w-full align-middle">
+                <table className="min-w-full">
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-3 px-4 font-medium text-gray-700">Item</th>
@@ -377,6 +378,7 @@ const fetchInventory = async (isBackgroundRefresh = false) => {
                   })}
                 </tbody>
               </table>
+              </div>
             </div>
 
             {inventory.length === 0 && (

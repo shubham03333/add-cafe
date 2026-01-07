@@ -313,34 +313,34 @@ const AdminControlPanel = () => {
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
       <div className="bg-gradient-to-r from-red-600 to-red-800 shadow-lg">
-        <div className="max-w-6xl mx-auto px-4 py-4 sm:py-6">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div className="flex items-center gap-3 sm:gap-4">
+        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-4">
+            <div className="flex items-center gap-2 sm:gap-3">
               <div className="flex-shrink-0">
                 <Image
                   src="/logo.png"
                   alt="Cafe Adda Logo"
-                  width={55}
-                  height={55}
-                  className="rounded-lg"
+                  width={45}
+                  height={45}
+                  className="rounded-lg sm:w-[55px] sm:h-[55px]"
                 />
               </div>
-              <h1 className="text-xl sm:text-2xl font-bold text-white">Admin Control Panel</h1>
+              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-white">Admin Control Panel</h1>
             </div>
-            <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-1 sm:gap-2 md:gap-4 flex-wrap justify-center sm:justify-end">
               {/* Theme Switcher */}
               <button
                 onClick={toggleTheme}
-                className="p-2 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors touch-manipulation"
+                className="p-2 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors touch-manipulation min-h-[44px] min-w-[44px] flex items-center justify-center"
                 title={`Switch to ${currentTheme === 'light' ? 'dark' : 'light'} theme`}
               >
                 <Palette className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
 
               {/* Offline Indicator */}
-              <div className={`p-2 rounded-lg flex items-center gap-1 touch-manipulation ${
-                isOnline 
-                  ? 'bg-green-500/20 text-green-100' 
+              <div className={`p-2 rounded-lg flex items-center gap-1 touch-manipulation min-h-[44px] ${
+                isOnline
+                  ? 'bg-green-500/20 text-green-100'
                   : 'bg-yellow-500/20 text-yellow-100'
               }`}>
                 {isOnline ? (
@@ -353,9 +353,9 @@ const AdminControlPanel = () => {
                 </span>
               </div>
 
-              <a 
-                href="/" 
-                className="bg-white text-red-600 px-3 py-2 sm:px-4 sm:py-2 rounded-lg hover:bg-gray-100 transition-colors text-sm sm:text-base whitespace-nowrap touch-manipulation min-h-[44px] flex items-center"
+              <a
+                href="/"
+                className="bg-white text-red-600 px-3 py-2 sm:px-4 sm:py-2 rounded-lg hover:bg-gray-100 transition-colors text-sm sm:text-base whitespace-nowrap touch-manipulation min-h-[44px] flex items-center justify-center"
               >
                 Back to Orders
               </a>
@@ -364,7 +364,7 @@ const AdminControlPanel = () => {
                 className="bg-red-500 text-white px-3 py-2 sm:px-4 sm:py-2 rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1 sm:gap-2 text-sm sm:text-base whitespace-nowrap touch-manipulation min-h-[44px]"
               >
                 <LogOut className="w-4 h-4 sm:w-4 sm:h-4" />
-                Logout
+                <span className="hidden sm:inline">Logout</span>
               </button>
             </div>
           </div>
@@ -425,7 +425,7 @@ const AdminControlPanel = () => {
       </div>
 
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
+      <div className="max-w-6xl mx-auto px-2 sm:px-3 md:px-4 py-3 sm:py-4 md:py-6">
         {error && (
           <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded">
             <p>{error}</p>
