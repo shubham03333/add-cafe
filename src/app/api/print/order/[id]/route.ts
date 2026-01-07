@@ -1,14 +1,12 @@
 import { NextRequest } from 'next/server';
 import { executeQuery } from '@/lib/db';
-import fs from 'fs';
-import path from 'path';
 
 type PrintCommand = {
   type: number;       // 0 = text
   content: string;
   bold?: number;
-  align?: number;     // 0 left, 1 center, 2 right
-  format?: number;   // optional
+  align?: number;     // 0 = left, 1 = center, 2 = right
+  format?: number;   // 0 normal, 1 double height, 2 double height+width
 };
 
 export async function GET(
@@ -17,20 +15,22 @@ export async function GET(
 ) {
   const orderId = params.id;
 
-  // 1️⃣ Fetch order
-  const orderRows = await executeQuery(
+  // 1️⃣ Fetch order from DB
+  const rows = await executeQuery(
     'SELECT order_number, order_time, total, items FROM orders WHERE id = ?',
     [orderId]
   ) as any[];
 
-  if (!orderRows || orderRows.length === 0) {
+  if (!rows || rows.length === 0) {
     return new Response(
-      JSON.stringify({ "0": { type: 0, content: "Order not found" } }),
+      JSON.stringify({
+        "0": { type: 0, content: 'Order not found', align: 1 }
+      }),
       { headers: { 'Content-Type': 'application/json' } }
     );
   }
 
-  const order = orderRows[0];
+  const order = rows[0];
 
   // 2️⃣ Parse items safely
   let items: any[] = [];
@@ -42,76 +42,128 @@ export async function GET(
     items = [];
   }
 
-  // 3️⃣ Build print commands dynamically
+  // 3️⃣ Prepare date + time (single line)
+  const now = new Date();
+  const date = now.toLocaleDateString('en-GB');
+  const time = now.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  });
+
   const commands: PrintCommand[] = [];
 
-  // Add header text with ASCII logo (printer doesn't support images)
-commands.push({
-  type: 0,
-  content: 'ADDA CAFE',
-  bold: 1,
-  align: 1,
-  format: 2
-});
-
-commands.push({
-  type: 0,
-  content: 'Pure Veg • Fresh & Tasty',
-  align: 1
-});
-
+  /* ================= HEADER ================= */
 
   commands.push({
     type: 0,
-    content: `Order #${order.order_number}`,
-    align: 1
+    content: 'ADDA CAFE',
+    bold: 1,
+    align: 1,
+    format: 2
   });
 
   commands.push({
     type: 0,
-    content: new Date().toLocaleString(),
+    content: '* Pure Veg * Fresh * Tasty *',
     align: 1
   });
 
+  /* ===== ADDRESS (MOVED HERE) ===== */
+
   commands.push({
     type: 0,
-    content: '------------------------------',
+    content: '--------------------------------',
     align: 0
   });
 
-  // Define fixed width for thermal printer (typically 32 characters)
-  const LINE_WIDTH = 32;
+  commands.push({
+    type: 0,
+    content: 'Jagdale Complex, Tuljapur',
+    align: 1
+  });
+
+
+  commands.push({
+    type: 0,
+    content: 'Ph: +91-7558379410',
+    align: 1
+  });
+
+  commands.push({
+    type: 0,
+    content: '--------------------------------',
+    align: 0
+  });
+
+  /* ================= ORDER INFO ================= */
+
+  commands.push({
+    type: 0,
+    content: `Order # ${order.order_number}`,
+    align: 1
+  });
+
+  commands.push({
+    type: 0,
+    content: `Date : ${date} : ${time}`,
+    align: 1
+  });
+
+  commands.push({
+    type: 0,
+    content: '--------------------------------',
+    align: 0
+  });
+
+  /* ================= TABLE HEADER ================= */
+
+  const header =
+    'Item'.padEnd(20) +
+    'Qty'.padStart(5) +
+    'Amt'.padStart(7);
+
+  commands.push({
+    type: 0,
+    content: header,
+    bold: 1,
+    align: 0
+  });
+
+  commands.push({
+    type: 0,
+    content: '--------------------------------',
+    align: 0
+  });
+
+  /* ================= ITEMS ================= */
 
   items.forEach((item) => {
-    const itemText = `${item.quantity}x ${item.name}`;
-    const priceText = `₹${item.price * item.quantity}`;
+    const name = item.name.length > 20
+      ? item.name.substring(0, 17) + '...'
+      : item.name;
 
-    // Ensure item text doesn't exceed available space for prices
-    const maxItemLength = LINE_WIDTH - priceText.length - 1; // -1 for space
-    const truncatedItemText = itemText.length > maxItemLength
-      ? itemText.substring(0, maxItemLength - 3) + '...'
-      : itemText;
-
-    // Create line with item text left-aligned and price right-aligned
-    const spaces = LINE_WIDTH - truncatedItemText.length - priceText.length;
-    const line = truncatedItemText + ' '.repeat(Math.max(1, spaces)) + priceText;
+    const qty = String(item.quantity).padStart(5);
+    const amt = (item.price * item.quantity).toFixed(2).padStart(7);
 
     commands.push({
       type: 0,
-      content: line,
+      content: name.padEnd(20) + qty + amt,
       align: 0
     });
   });
 
+  /* ================= TOTAL ================= */
+
   commands.push({
     type: 0,
-    content: '------------------------------',
+    content: '--------------------------------',
     align: 0
   });
 
   commands.push({
     type: 0,
-    content: `TOTAL ₹${Number(order.total).toFixed(2)}`,
+    content: `TOTAL  Rs.${Number(order.total).toFixed(2)}`,
     bold: 1,
     align: 2,
     format: 2
@@ -119,17 +171,27 @@ commands.push({
 
   commands.push({
     type: 0,
-    content: 'Thank you! Visit again',
+    content: '--------------------------------',
+    align: 0
+  });
+
+  /* ================= FOOTER ================= */
+
+  commands.push({
+    type: 0,
+    content: 'Thank you! Visit again :)',
     align: 1
   });
 
-  // 4️⃣ Convert ARRAY → OBJECT (THIS IS THE MAGIC)
+  /* ================= ARRAY → OBJECT ================= */
+
   const printerJson: Record<string, PrintCommand> = {};
   commands.forEach((cmd, index) => {
     printerJson[index.toString()] = cmd;
   });
 
-  // 5️⃣ Return RAW JSON (no wrappers)
+  /* ================= RESPONSE ================= */
+
   return new Response(JSON.stringify(printerJson), {
     headers: {
       'Content-Type': 'application/json',
