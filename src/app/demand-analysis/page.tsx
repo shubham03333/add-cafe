@@ -30,9 +30,9 @@ const DemandAnalysisPage: React.FC = () => {
     try {
       setLoading(true);
       // Fetch all orders including served ones
-      const response = await fetch('/api/orders?includeServed=true');
+      const response = await fetch('/api/orders?includeServed=true&loadAll=true');
       if (!response.ok) throw new Error('Failed to fetch orders');
-      
+
       const orders: Order[] = await response.json();
       
       // Aggregate dish quantities and revenue
