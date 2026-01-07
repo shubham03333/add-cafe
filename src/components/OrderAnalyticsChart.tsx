@@ -81,6 +81,7 @@ const OrderAnalyticsChart: React.FC<OrderAnalyticsChartProps> = ({ className = '
   };
 
   const maxOrderCount = Math.max(...analyticsData.map(d => d.order_count), 1);
+  const peakPeriod = analyticsData.reduce((max, current) => current.order_count > max.order_count ? current : max, analyticsData[0] || null);
 
   if (loading) {
     return (
@@ -207,7 +208,7 @@ const OrderAnalyticsChart: React.FC<OrderAnalyticsChartProps> = ({ className = '
             <div>
               <div className="text-sm text-purple-700 font-medium mb-1">Peak Period</div>
               <div className="text-lg font-bold text-purple-900 truncate">
-                {analyticsData.length > 0 ? formatTimeLabel(analyticsData[0].time_period) : 'N/A'}
+                {peakPeriod ? formatTimeLabel(peakPeriod.time_period) : 'N/A'}
               </div>
               <div className="text-xs text-purple-600 mt-1">Highest activity</div>
             </div>
