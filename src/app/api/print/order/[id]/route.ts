@@ -11,9 +11,9 @@ type PrintCommand = {
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const orderId = params.id;
+  const { id: orderId } = await params;
 
   // 1️⃣ Fetch order from DB
   const rows = await executeQuery(
