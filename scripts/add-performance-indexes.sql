@@ -1,3 +1,23 @@
+
+
++-----------------------+
+| Tables_in_add_test_db |
++-----------------------+
+| customer_otps         |
+| customers             |
+| daily_sales           |
+| dish_raw_materials    |
+| menu_items            |
+| orders                |
+| raw_materials         |
+| revenue_overrides     |
+| sales_history         |
+| system_settings       |
+| user_roles            |
+| users                 |
++-----------------------+
+
+
 -- Performance optimization indexes for cafe orders database
 -- Run this script to improve query performance on production
 
@@ -14,12 +34,12 @@ CREATE INDEX idx_orders_status ON orders(status);
 CREATE INDEX idx_orders_time_status_payment ON orders(order_time, status, payment_status);
 
 -- Index for menu items queries
-CREATE INDEX idx_menu_category ON menu(category);
-CREATE INDEX idx_menu_available ON menu(available);
+CREATE INDEX idx_menu_category ON menu_items(category);
+CREATE INDEX idx_menu_available ON menu_items(is_available);
 
 -- Index for inventory queries
-CREATE INDEX idx_inventory_item_name ON inventory(item_name);
-CREATE INDEX idx_inventory_quantity ON inventory(quantity);
+CREATE INDEX id ON dish_raw_materials(id);
+CREATE INDEX idx_inventory_quantity ON dish_raw_materials(quantity_required);
 
 -- Index for daily sales queries
 CREATE INDEX idx_daily_sales_date ON daily_sales(date);
@@ -32,7 +52,7 @@ CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_role ON users(role);
 
 -- Index for customer queries
-CREATE INDEX idx_customers_phone ON customers(phone_number);
+CREATE INDEX idx_mobile ON customers(mobile);
 
 -- Composite index for order analytics (time + total for revenue queries)
 CREATE INDEX idx_orders_time_total ON orders(order_time, total);
@@ -44,14 +64,14 @@ CREATE INDEX idx_orders_time_total ON orders(order_time, total);
 
 -- Optimize table storage for better performance
 OPTIMIZE TABLE orders;
-OPTIMIZE TABLE menu;
-OPTIMIZE TABLE inventory;
+OPTIMIZE TABLE menu_items;
+OPTIMIZE TABLE dish_raw_materials;
 OPTIMIZE TABLE daily_sales;
 OPTIMIZE TABLE users;
 OPTIMIZE TABLE customers;
 
 -- Show index information for verification
 SHOW INDEX FROM orders;
-SHOW INDEX FROM menu;
-SHOW INDEX FROM inventory;
+SHOW INDEX FROM menu_items;
+SHOW INDEX FROM dish_raw_materials;
 SHOW INDEX FROM daily_sales;
