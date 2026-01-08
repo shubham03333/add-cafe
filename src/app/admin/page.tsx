@@ -561,13 +561,13 @@ const AdminControlPanel = () => {
                     onDragLeave={(e) => handleDragLeave(e)}
                     onDrop={(e) => handleDrop(e, item)}
                     onDragEnd={handleDragEnd}
-                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 cursor-move hover:bg-gray-100 transition-colors"
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-lg border border-gray-200 cursor-move hover:bg-gray-100 transition-colors"
                   >
                     <div className="flex items-center gap-4 flex-1">
                     <div className="w-8 h-8 bg-red-100 rounded flex items-center justify-center text-red-600 font-semibold">
                         {item.position || '?'}
                       </div>
-                      
+
                       <div className="flex-1">
                         <div className="font-semibold text-gray-900">{item.name}</div>
                         <div className="text-sm text-gray-700">
@@ -576,10 +576,10 @@ const AdminControlPanel = () => {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                        item.is_available 
-                          ? 'bg-green-100 text-green-800' 
+                    <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                      <span className={`px-3 py-2 sm:px-2 sm:py-1 rounded text-xs font-medium ${
+                        item.is_available
+                          ? 'bg-green-100 text-green-800'
                           : 'bg-red-100 text-red-800'
                       }`}>
                         {item.is_available ? 'Available' : 'Unavailable'}
@@ -587,9 +587,9 @@ const AdminControlPanel = () => {
 
                       <button
                         onClick={() => toggleItemAvailability(item)}
-                        className={`p-2 rounded ${
-                          item.is_available 
-                            ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200' 
+                        className={`p-3 sm:p-2 rounded min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation ${
+                          item.is_available
+                            ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
                             : 'bg-green-100 text-green-600 hover:bg-green-200'
                         }`}
                         title={item.is_available ? 'Mark Unavailable' : 'Mark Available'}
@@ -599,7 +599,7 @@ const AdminControlPanel = () => {
 
                       <button
                         onClick={() => setEditingItem(item)}
-                        className="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors"
+                        className="p-3 sm:p-2 bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation"
                         title="Edit"
                       >
                         <Edit2 className="w-4 h-4" />
@@ -607,7 +607,7 @@ const AdminControlPanel = () => {
 
                       <button
                         onClick={() => deleteMenuItem(item.id)}
-                        className="p-2 bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors"
+                        className="p-3 sm:p-2 bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation"
                         title="Delete"
                       >
                         <Trash2 className="w-4 h-4" />

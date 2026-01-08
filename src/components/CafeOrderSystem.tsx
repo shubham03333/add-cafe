@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Clock, ChefHat, Edit2, Trash2, X, Save, BarChart3, History, Wifi, WifiOff } from 'lucide-react';
 import { Order, MenuItem, OrderItem, CreateOrderRequest, UpdateOrderRequest } from '@/types';
 import { useOfflineStatus } from '@/hooks/useOfflineStatus';
@@ -590,6 +591,7 @@ const CafeOrderSystem = () => {
       await updateOrderStatus(orderToServe.id, 'served');
 
       closePaymentModeModal();
+      closeOrderPopup(); // Close the bill popup and return to main dashboard
     } catch (err) {
       setError('Failed to process payment and serve order');
       console.error(err);
@@ -1250,6 +1252,7 @@ const CafeOrderSystem = () => {
       window.location.origin;
     window.location.href =
       `my.bluetoothprint.scheme://${baseUrl}/api/print/order/${viewingOrder.id}`;
+    openPaymentModeModal(viewingOrder);
   }}
   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium"
 >
