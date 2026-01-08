@@ -41,6 +41,8 @@ CREATE INDEX idx_menu_available ON menu_items(is_available);
 CREATE INDEX id ON dish_raw_materials(id);
 CREATE INDEX idx_inventory_quantity ON dish_raw_materials(quantity_required);
 
+
+
 -- Index for daily sales queries
 CREATE INDEX idx_daily_sales_date ON daily_sales(date);
 

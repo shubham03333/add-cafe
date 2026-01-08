@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { ChevronLeft, ChevronRight, Eye, RefreshCw, Filter, SortAsc, SortDesc } from 'lucide-react';
 
 interface Order {
@@ -37,6 +37,8 @@ const OrderManagement = () => {
   const [todayFilter, setTodayFilter] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollPosition, setScrollPosition] = useState(0);
 
   const fetchOrders = async (page: number = 1) => {
     setLoading(true);
@@ -79,6 +81,17 @@ const OrderManagement = () => {
   useEffect(() => {
     fetchOrders(1);
   }, [statusFilter, sortBy, sortOrder, todayFilter]);
+
+  // Auto-scroll to top with delay after orders are loaded
+  useLayoutEffect(() => {
+    if (tableContainerRef.current) {
+      const timer = setTimeout(() => {
+        tableContainerRef.current!.scrollTop = 0;
+      }, 3000); // 3 second delay
+
+      return () => clearTimeout(timer);
+    }
+  }, [orders]);
 
   const handlePageChange = (page: number) => {
     if (page >= 1 && page <= (pagination?.totalPages || 1)) {
@@ -195,7 +208,19 @@ const OrderManagement = () => {
 
       {/* Orders Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        <div className="overflow-x-auto -mx-4 sm:mx-0">
+        <div
+          className="overflow-x-auto overflow-y-auto max-h-96 -mx-4 sm:mx-0"
+          ref={tableContainerRef}
+          style={{
+            scrollBehavior: 'auto',
+            overscrollBehavior: 'none'
+          }}
+          onScroll={(e) => {
+            // Save scroll position to state
+            const target = e.target as HTMLDivElement;
+            setScrollPosition(target.scrollTop);
+          }}
+        >
           <div className="inline-block min-w-full align-middle">
             <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
