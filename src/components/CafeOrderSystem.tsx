@@ -1245,6 +1245,31 @@ const CafeOrderSystem = () => {
 
               {/* Action Buttons at Bottom */}
               <div className="flex gap-3 justify-center print:hidden mt-2">
+{/* for prod use below  */}
+<button
+  onClick={() => {
+    const domain = process.env.NEXT_PUBLIC_PRODUCTION_DOMAIN;
+
+    if (!domain) {
+      alert('Printer domain not configured');
+      return;
+    }
+
+    const printUrl =
+      `my.bluetoothprint.scheme://http://${domain}/api/print/order/${viewingOrder.id}`;
+
+    window.location.href = printUrl;
+
+    openPaymentModeModal(viewingOrder);
+  }}
+  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium"
+>
+  🖨️ Print
+</button>
+
+
+
+
 <button
   onClick={() => {
     const baseUrl =
