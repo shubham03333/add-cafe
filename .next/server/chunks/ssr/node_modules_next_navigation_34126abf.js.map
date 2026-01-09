@@ -1,0 +1,1 @@
+{"version":3,"sources":["turbopack:///[project]/node_modules/next/navigation.js"],"sourcesContent":["module.exports = require('./dist/client/components/navigation')\n"],"names":[],"mappings":"gCAAA,EAAO,OAAO,CAAA,EAAA,CAAA,CAAA","ignoreList":[0]}
