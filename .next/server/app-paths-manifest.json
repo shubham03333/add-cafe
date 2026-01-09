@@ -1,9 +1,10 @@
 {
-  "/api/orders/route": "app/api/orders/route.js",
+  "/api/menu/admin/route": "app/api/menu/admin/route.js",
   "/api/daily-sales/today/route": "app/api/daily-sales/today/route.js",
-  "/api/orders/[id]/route": "app/api/orders/[id]/route.js",
-  "/api/orders/[id]/pay/route": "app/api/orders/[id]/pay/route.js",
-  "/dashbord/page": "app/dashbord/page.js",
-  "/login/page": "app/login/page.js",
-  "/admin/page": "app/admin/page.js"
+  "/api/total-revenue/route": "app/api/total-revenue/route.js",
+  "/api/menu/route": "app/api/menu/route.js",
+  "/api/orders/route": "app/api/orders/route.js",
+  "/api/sales-report/route": "app/api/sales-report/route.js",
+  "/admin/page": "app/admin/page.js",
+  "/dashbord/page": "app/dashbord/page.js"
 }
