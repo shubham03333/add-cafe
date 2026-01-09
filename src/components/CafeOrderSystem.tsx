@@ -1270,7 +1270,8 @@ const CafeOrderSystem = () => {
 
 
 
-<button
+
+{/* <button
   onClick={() => {
     const baseUrl =
       process.env.NEXT_PUBLIC_PRODUCTION_DOMAIN ??
@@ -1282,7 +1283,7 @@ const CafeOrderSystem = () => {
   className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg font-medium"
 >
   🖨️ Print
-</button>
+</button> */}
 
                 {/* <button
                   onClick={() => printBill(viewingOrder)}
