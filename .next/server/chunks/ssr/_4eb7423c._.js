@@ -1,3 +1,0 @@
-module.exports=[50944,(a,b,c)=>{b.exports=a.r(74137)},58111,a=>{"use strict";a.s(["default",()=>e]);var b=a.i(87924),c=a.i(72131),d=a.i(50944);function e(){let a=(0,d.useRouter)();return(0,c.useEffect)(()=>{a.push("/dashbord")},[a]),(0,b.jsx)("div",{className:"min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex items-center justify-center",children:(0,b.jsxs)("div",{className:"text-center",children:[(0,b.jsx)("div",{className:"animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"}),(0,b.jsx)("p",{className:"text-gray-600",children:"Redirecting to Dashboard..."})]})})}}];
-
-//# sourceMappingURL=_4eb7423c._.js.map

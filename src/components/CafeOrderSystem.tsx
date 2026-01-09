@@ -83,7 +83,7 @@ const CafeOrderSystem = () => {
 
   const fetchMenu = async () => {
     try {
-      const response = await fetch('/api/menu');
+      const response = await fetch('/api/menu?availableOnly=true');
       if (!response.ok) throw new Error('Failed to fetch menu');
       const data = await response.json();
       setMenuItems(data);
