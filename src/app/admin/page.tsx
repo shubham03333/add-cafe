@@ -266,23 +266,43 @@ const AdminControlPanel = () => {
 
   const saveMenuItem = async () => {
     try {
+      const itemToSave = editingItem || newItem;
+
+      // Client-side validation
+      if (!itemToSave.name || !itemToSave.name.trim()) {
+        setError('Name is required');
+        return;
+      }
+      if (itemToSave.price == null || itemToSave.price <= 0) {
+        setError('Price must be greater than 0');
+        return;
+      }
+      if (!itemToSave.category || !itemToSave.category.trim()) {
+        setError('Category is required');
+        return;
+      }
+
       const url = editingItem ? `/api/menu/${editingItem.id}` : '/api/menu';
       const method = editingItem ? 'PUT' : 'POST';
-      
+
       const response = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(editingItem || newItem)
+        body: JSON.stringify(itemToSave)
       });
 
-      if (!response.ok) throw new Error('Failed to save menu item');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to save menu item');
+      }
 
       setEditingItem(null);
       setNewItem({ name: '', price: 0, category: '', is_available: true });
+      setError(null); // Clear any previous errors
       await fetchMenu();
-      
+
     } catch (err) {
-      setError('Failed to save menu item');
+      setError(err instanceof Error ? err.message : 'Failed to save menu item');
       console.error(err);
     }
   };

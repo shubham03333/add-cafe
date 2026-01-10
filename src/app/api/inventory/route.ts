@@ -60,3 +60,119 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+// POST /api/inventory - Update stock quantities directly
+export async function POST(request: NextRequest) {
+  try {
+    if (!db) {
+      throw new Error('Database connection not initialized');
+    }
+
+    const updates = await request.json();
+
+    if (!Array.isArray(updates)) {
+      return NextResponse.json(
+        { error: 'Request body must be an array of updates' },
+        { status: 400 }
+      );
+    }
+
+    const connection = await db.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      for (const update of updates) {
+        const { id, stock_quantity } = update;
+
+        if (!id || stock_quantity === undefined) {
+          throw new Error('Each update must have id and stock_quantity');
+        }
+
+        await connection.execute(
+          'UPDATE menu_items SET stock_quantity = ?, last_restocked = NOW() WHERE id = ?',
+          [Math.max(0, stock_quantity), id]
+        );
+      }
+
+      await connection.commit();
+
+      // Clear cache
+      cache.delete('inventory_full_data');
+
+      return NextResponse.json({ success: true });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error updating inventory:', error);
+    return NextResponse.json(
+      { error: 'Failed to update inventory' },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH /api/inventory - Adjust stock quantities (add/subtract)
+export async function PATCH(request: NextRequest) {
+  try {
+    if (!db) {
+      throw new Error('Database connection not initialized');
+    }
+
+    const adjustments = await request.json();
+
+    if (!Array.isArray(adjustments)) {
+      return NextResponse.json(
+        { error: 'Request body must be an array of adjustments' },
+        { status: 400 }
+      );
+    }
+
+    const connection = await db.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      for (const adjustment of adjustments) {
+        const { id, quantity, action } = adjustment;
+
+        if (!id || !quantity || !action) {
+          throw new Error('Each adjustment must have id, quantity, and action');
+        }
+
+        if (!['add', 'subtract'].includes(action)) {
+          throw new Error('Action must be either "add" or "subtract"');
+        }
+
+        const adjustmentValue = action === 'add' ? quantity : -quantity;
+
+        await connection.execute(
+          'UPDATE menu_items SET stock_quantity = GREATEST(0, stock_quantity + ?), last_restocked = NOW() WHERE id = ?',
+          [adjustmentValue, id]
+        );
+      }
+
+      await connection.commit();
+
+      // Clear cache
+      cache.delete('inventory_full_data');
+
+      return NextResponse.json({ success: true });
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
+  } catch (error) {
+    console.error('Error adjusting inventory:', error);
+    return NextResponse.json(
+      { error: 'Failed to adjust inventory' },
+      { status: 500 }
+    );
+  }
+}

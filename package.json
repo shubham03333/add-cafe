@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "dev": "set TURBO_FORCE=false && next dev",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "db:test": "node -r dotenv/config scripts/test-mysql-connection.js",

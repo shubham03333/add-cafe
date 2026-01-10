@@ -64,6 +64,7 @@ const CafeOrderSystem = () => {
     // Set up polling for real-time updates
     const pollingInterval = setInterval(() => {
       fetchOrders();
+      fetchMenu(); // Also refresh menu items to reflect availability changes from admin
     }, 3000); // Poll every 3 seconds
 
     // Listen for order update events (e.g., payment status changes)
@@ -1266,9 +1267,6 @@ const CafeOrderSystem = () => {
 >
   🖨️ Print
 </button>
-
-
-
 
 
 {/* <button
