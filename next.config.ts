@@ -44,5 +44,5 @@ export default withPWA({
   dest: "public",
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === "development",
+  disable: true, // Temporarily disable PWA to fix build
 })(nextConfig as any);

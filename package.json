@@ -26,6 +26,7 @@
     "lucide-react": "^0.541.0",
     "mysql2": "^3.14.3",
     "next": "15.5.0",
+    "qrcode.react": "^4.2.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "twilio": "^5.8.2",

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Clock, ChefHat, Edit2, Trash2, X, Save, BarChart3, History, Wifi, WifiOff } from 'lucide-react';
 import { Order, MenuItem, OrderItem, CreateOrderRequest, UpdateOrderRequest } from '@/types';
 import { useOfflineStatus } from '@/hooks/useOfflineStatus';
+import GoogleReviewQR from './GoogleReviewQR';
 
 const CafeOrderSystem = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -1237,6 +1238,9 @@ const CafeOrderSystem = () => {
                   <span className="text-base font-bold text-red-900 print:text-black print:text-lg">₹{viewingOrder.total}</span>
                 </div>
               </div>
+
+              {/* Google Review QR Code */}
+              <GoogleReviewQR size={60} />
 
               {/* Footer */}
               <div className="text-center text-xs text-gray-500 print:text-black mb-2 print:mb-1">
