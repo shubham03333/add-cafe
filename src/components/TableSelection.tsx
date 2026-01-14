@@ -77,8 +77,8 @@ const TableSelection = ({ onTableSelect, onBack }: TableSelectionProps) => {
         <div className="absolute inset-0 bg-black/10 rounded-2xl"></div>
         <div className="relative z-10">
           <img src="/logo.png" alt="Logo" className="w-16 h-16 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-white mb-2">Adda Cafe</h1>
-          <p className="text-red-100">Select your table</p>
+          {/* <h1 className="text-2xl font-bold text-white mb-2">Adda Cafe</h1> */}
+          {/* <p className="text-red-100">Select your table</p> */}
         </div>
       </div>
 
@@ -88,7 +88,7 @@ const TableSelection = ({ onTableSelect, onBack }: TableSelectionProps) => {
       <div className="mb-6">
         <h2 className="text-xl font-semibold text-gray-800 mb-4">Available Tables</h2>
 
-        {tables.length === 0 ? (
+        {tables.filter(table => table.is_active).length === 0 ? (
           <div className="text-center py-12 text-gray-500 bg-white rounded-lg shadow-md">
             <div className="text-4xl mb-4">🍽️</div>
             <div className="text-lg">No tables available</div>
@@ -96,7 +96,7 @@ const TableSelection = ({ onTableSelect, onBack }: TableSelectionProps) => {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-4">
-            {tables.map((table) => (
+            {tables.filter(table => table.is_active).map((table) => (
               <button
                 key={table.id}
                 type="button"

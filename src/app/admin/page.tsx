@@ -2,9 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Save, X, Edit2, Trash2, Plus, BarChart3, Settings, Menu, Users, Package, LogOut, TrendingUp, Palette, Wifi, WifiOff } from 'lucide-react';
+import { Save, X, Edit2, Trash2, Plus, BarChart3, Settings, Menu, Users, Package, LogOut, TrendingUp, Palette, Wifi, WifiOff, Table } from 'lucide-react';
 import Image from 'next/image';
-import { MenuItem } from '@/types';
+import { MenuItem, Table as TableType } from '@/types';
 import SalesReport from '@/components/SalesReport';
 import InventoryDashboard from '@/components/InventoryDashboard';
 import UserManagement from '@/components/UserManagement';
@@ -34,7 +34,96 @@ const AdminControlPanel = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
   const [currentTheme, setCurrentTheme] = useState('light');
+  const [tables, setTables] = useState<TableType[]>([]);
+  const [newTable, setNewTable] = useState({
+    table_code: '',
+    table_name: '',
+    capacity: 4
+  });
   const router = useRouter();
+
+  // Fetch tables
+  const fetchTables = async () => {
+    try {
+      const response = await fetch('/api/tables');
+      if (!response.ok) throw new Error('Failed to fetch tables');
+      const data = await response.json();
+      setTables(data);
+    } catch (err) {
+      setError('Failed to load tables');
+      console.error(err);
+    }
+  };
+
+  // Add new table
+  const addTable = async () => {
+    if (!newTable.table_code.trim() || !newTable.table_name.trim()) {
+      setError('Table code and name are required');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/tables', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTable)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to add table');
+      }
+
+      setNewTable({ table_code: '', table_name: '', capacity: 4 });
+      setError(null);
+      await fetchTables();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add table');
+      console.error(err);
+    }
+  };
+
+  // Delete table
+  const deleteTable = async (tableId: number) => {
+    if (!confirm('Are you sure you want to delete this table?')) return;
+
+    try {
+      const response = await fetch(`/api/tables/${tableId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete table');
+      }
+
+      await fetchTables();
+    } catch (err) {
+      setError('Failed to delete table');
+      console.error(err);
+    }
+  };
+
+  // Toggle table active status
+  const toggleTableStatus = async (table: TableType) => {
+    try {
+      const response = await fetch(`/api/tables/${table.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: !table.is_active })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update table status');
+      }
+
+      await fetchTables();
+    } catch (err) {
+      setError('Failed to update table status');
+      console.error(err);
+    }
+  };
 
   // Check authentication on component mount
   useEffect(() => {
@@ -51,6 +140,7 @@ const AdminControlPanel = () => {
         }
         fetchMenu();
         fetchSalesData();
+        fetchTables();
       } else {
         router.push('/login'); // Redirect to the main login page
       }
@@ -97,7 +187,7 @@ const AdminControlPanel = () => {
       const data = await response.json();
       setMenuItems(data);
       // Update available categories from fetched menu items
-      const categories = Array.from(new Set(data.map((item: MenuItem) => item.category).filter((cat) => cat && typeof cat === 'string' && cat.trim()))) as string[];
+      const categories = Array.from(new Set(data.map((item: MenuItem) => item.category).filter((cat: string | undefined) => cat && typeof cat === 'string' && cat.trim()))) as string[];
       setAvailableCategories(categories);
     } catch (err) {
       setError('Failed to load menu');
@@ -310,7 +400,7 @@ const AdminControlPanel = () => {
 
       // If a new category was added, update the available categories immediately
       if (!editingItem && itemToSave.category && !availableCategories.includes(itemToSave.category)) {
-        setAvailableCategories(prev => [...prev, itemToSave.category]);
+        setAvailableCategories(prev => [...prev, itemToSave.category!]);
       }
 
       await fetchMenu();
@@ -411,6 +501,7 @@ const AdminControlPanel = () => {
           <div className="flex overflow-x-auto space-x-1 py-1 sm:py-0">
             {[
               { id: 'menu', label: 'Menu Management', icon: Menu },
+              { id: 'tables', label: 'Table Management', icon: Table },
               { id: 'orders', label: 'Orders', icon: Package },
               { id: 'inventory', label: 'Inventory', icon: Package },
               { id: 'analytics', label: 'Analytics', icon: TrendingUp },
@@ -754,6 +845,127 @@ const AdminControlPanel = () => {
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-bold mb-4 text-gray-900">Order Analytics</h2>
             <OrderAnalyticsChart />
+          </div>
+        )}
+
+        {/* Table Management Tab */}
+        {activeTab === 'tables' && (
+          <div className="space-y-6">
+            {/* Add New Table Form */}
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <h2 className="text-xl font-semibold mb-4 text-gray-900">Add New Table</h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-800 mb-1">Table Code</label>
+                  <input
+                    type="text"
+                    value={newTable.table_code}
+                    onChange={(e) => setNewTable({ ...newTable, table_code: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded text-gray-900"
+                    placeholder="e.g., T01"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-800 mb-1">Table Name</label>
+                  <input
+                    type="text"
+                    value={newTable.table_name}
+                    onChange={(e) => setNewTable({ ...newTable, table_name: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded text-gray-900"
+                    placeholder="e.g., Table 1"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-800 mb-1">Capacity</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={newTable.capacity}
+                    onChange={(e) => setNewTable({ ...newTable, capacity: parseInt(e.target.value) || 4 })}
+                    className="w-full p-2 border border-gray-300 rounded text-gray-900"
+                    placeholder="4"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={addTable}
+                  className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 touch-manipulation min-h-[48px]"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Table
+                </button>
+              </div>
+            </div>
+
+            {/* Tables List */}
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold text-gray-900">Tables ({tables.length})</h2>
+                <button
+                  onClick={fetchTables}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 touch-manipulation min-h-[44px]"
+                >
+                  Refresh
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {tables.map((table) => (
+                  <div
+                    key={table.id}
+                    className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-gray-50 rounded-lg border border-gray-200"
+                  >
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className="w-8 h-8 bg-red-100 rounded flex items-center justify-center text-red-600 font-semibold">
+                        {table.table_code}
+                      </div>
+
+                      <div className="flex-1">
+                        <div className="font-semibold text-gray-900">{table.table_name}</div>
+                        <div className="text-sm text-gray-700">
+                          Capacity: {table.capacity} • Code: {table.table_code}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-2 sm:mt-0">
+                      <span className={`px-3 py-2 sm:px-2 sm:py-1 rounded text-xs font-medium ${
+                        table.is_active
+                          ? 'bg-green-100 text-green-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {table.is_active ? 'Active' : 'Inactive'}
+                      </span>
+
+                      <button
+                        onClick={() => toggleTableStatus(table)}
+                        className={`p-3 sm:p-2 rounded min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation ${
+                          table.is_active
+                            ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
+                            : 'bg-green-100 text-green-600 hover:bg-green-200'
+                        }`}
+                        title={table.is_active ? 'Deactivate Table' : 'Activate Table'}
+                      >
+                        {table.is_active ? '❌' : '✅'}
+                      </button>
+
+                      <button
+                        onClick={() => deleteTable(table.id)}
+                        className="p-3 sm:p-2 bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation"
+                        title="Delete Table"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
       </div>

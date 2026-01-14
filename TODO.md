@@ -1,3 +1,10 @@
+# Database Connection Limit Fix
+- [x] Increase database connection limit from 2 to 10 to resolve "Too many connections" errors
+- [x] Add retry logic with exponential backoff for connection limit errors
+- [x] Reduce connection pool to 5 connections with optimized settings
+- [x] Test application to verify connection errors are resolved
+- [ ] **SERVER-SIDE FIX REQUIRED**: Increase MySQL server's max_connections setting (currently hitting server limit)
+
 # UI Update Implementation - Large Menu Handling
 
 ## Phase 1: State Management Setup

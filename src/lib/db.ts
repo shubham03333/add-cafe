@@ -11,10 +11,13 @@ const getDbConfig = () => {
     port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 3306,
     ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
     waitForConnections: true,
-    connectionLimit: 2,
+    connectionLimit: 5,
     queueLimit: 0,
-    acquireTimeout: 60000,
-    timeout: 60000
+    acquireTimeoutMillis: 30000,
+    timeout: 30000,
+    idleTimeoutMillis: 30000,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 0
   };
 
   // Debug environment variables in development
@@ -52,18 +55,32 @@ const dbConfig = getDbConfig();
 // Create connection pool only if we have valid configuration
 export const db = dbConfig ? mysql.createPool(dbConfig) : null;
 
-// Helper function to safely execute queries
-export async function executeQuery(query: string, params?: any[]) {
+// Helper function to safely execute queries with retry logic
+export async function executeQuery(query: string, params?: any[], retryCount = 0) {
   if (!db) {
     throw new Error('Database not configured. Please check environment variables.');
   }
+
+  const maxRetries = 3;
+  const baseDelay = 100; // 100ms base delay
 
   try {
     // Always pass params if provided, even if empty array
     const [rows] = params !== undefined ? await db.execute(query, params) : await db.execute(query);
     return rows;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Database query error:', error);
+
+    // Check if it's a connection limit error and we haven't exceeded max retries
+    if (error.code === 'ER_CON_COUNT_ERROR' && retryCount < maxRetries) {
+      const delay = baseDelay * Math.pow(2, retryCount); // Exponential backoff
+      console.log(`Connection limit reached, retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries})`);
+
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return executeQuery(query, params, retryCount + 1);
+    }
+
+    // For other errors or if we've exhausted retries, throw the error
     throw new Error(`Database error: ${error instanceof Error ? error.message : 'Unknown error'}`);
   }
 }
