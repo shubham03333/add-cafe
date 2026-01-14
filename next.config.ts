@@ -44,5 +44,25 @@ export default withPWA({
   dest: "public",
   register: true,
   skipWaiting: true,
-  disable: true, // Temporarily disable PWA to fix build
+  disable: false, // Enable PWA for offline functionality
+  runtimeCaching: [
+    {
+      urlPattern: /^https?.*/,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'offline-cache',
+        expiration: {
+          maxEntries: 200,
+          maxAgeSeconds: 24 * 60 * 60, // 24 hours
+        },
+      },
+    },
+    {
+      urlPattern: /\/api\/.*/,
+      handler: 'NetworkOnly',
+      options: {
+        cacheName: 'api-cache',
+      },
+    },
+  ],
 })(nextConfig as any);

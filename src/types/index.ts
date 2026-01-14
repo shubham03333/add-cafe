@@ -90,6 +90,55 @@ export interface UpdateOrderRequest {
   payment_status?: Order['payment_status'];
 }
 
+// Offline-first types
+export interface LocalOrder {
+  local_order_id: string;
+  server_order_id?: string;
+  order_number?: string;
+  items: OrderItem[];
+  total: number;
+  status: 'pending' | 'preparing' | 'ready' | 'served' | 'cancelled';
+  payment_status: 'pending' | 'paid' | 'failed';
+  payment_mode?: 'cash' | 'online';
+  order_time: string;
+  order_type: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
+  table_id?: string;
+  table_code?: string;
+  sync_status: 'pending' | 'syncing' | 'synced' | 'failed';
+  sync_attempts: number;
+  last_sync_attempt?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LocalTable {
+  id: number;
+  table_code: string;
+  table_name: string;
+  capacity: number;
+  is_active: boolean;
+  is_occupied?: boolean;
+  last_updated: string;
+}
+
+export interface SyncQueueItem {
+  id: string;
+  type: 'order_create' | 'order_update' | 'order_delete';
+  local_order_id: string;
+  data: any;
+  created_at: string;
+  retry_count: number;
+  last_attempt?: string;
+  error_message?: string;
+}
+
+export interface SyncResponse {
+  success: boolean;
+  server_order_id?: string;
+  order_number?: string;
+  error?: string;
+}
+
 // Customer authentication types
 export interface Customer {
   id: number;
