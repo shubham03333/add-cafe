@@ -1038,6 +1038,11 @@ const CafeOrderSystem = () => {
                     <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
                       <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-red-700 flex-shrink-0" />
                       <span className="font-bold text-sm sm:text-lg text-red-900">#{order.order_number.toString().padStart(3, '0')}</span>
+                      {order.order_type === 'DINE_IN' && order.table_code && (
+                        <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-blue-200 text-blue-900 rounded-full text-xs font-semibold flex-shrink-0">
+                          Table {order.table_code}
+                        </span>
+                      )}
                       <span className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-semibold flex-shrink-0 ${
                         order.status === 'preparing'
                           ? 'bg-yellow-200 text-yellow-900'
