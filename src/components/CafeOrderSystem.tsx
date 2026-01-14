@@ -61,6 +61,9 @@ const CafeOrderSystem = () => {
   const [viewMode, setViewMode] = useState<'all' | 'favorites'>('all');
   const [favorites, setFavorites] = useState<number[]>([]);
 
+  // Edit order modal search state
+  const [editOrderSearchTerm, setEditOrderSearchTerm] = useState('');
+
   // Handle table selection
   const handleTableSelect = (table: Table) => {
     setSelectedTable(table);
@@ -813,20 +816,33 @@ const CafeOrderSystem = () => {
       <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
         {/* <h2 className="font-semibold text-gray-800 text-lg mb-4">Search & Filter</h2> */}
         <div className="space-y-3">
-          {/* Search Bar */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search menu items..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm text-black"
-            />
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
+          {/* Search Bar and Favorites */}
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder="Search menu items..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm text-black"
+              />
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
             </div>
+      <button
+        onClick={() => setViewMode(viewMode === 'favorites' ? 'all' : 'favorites')}
+        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+          viewMode === 'favorites'
+            ? 'bg-red-600 text-white'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`}
+        title={viewMode === 'favorites' ? 'Show All Items' : 'Show Favorites'}
+      >
+        {viewMode === 'favorites' ? '⭐' : '☆'}
+      </button>
           </div>
 
           {/* Category and View Mode Filters */}
@@ -848,29 +864,7 @@ const CafeOrderSystem = () => {
               ))}
             </div>
 
-            {/* View Mode Toggle */}
-            <div className="flex gap-1 ml-auto">
-              <button
-                onClick={() => setViewMode('all')}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  viewMode === 'all'
-                    ? 'bg-red-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setViewMode('favorites')}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  viewMode === 'favorites'
-                    ? 'bg-red-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                ⭐ Favorites
-              </button>
-            </div>
+
           </div>
         </div>
       </div>
@@ -886,6 +880,9 @@ const CafeOrderSystem = () => {
                   Edit Order #{editingOrder.order_number.toString().padStart(3, '0')}
                 </h2>
                 <p className="text-sm text-gray-600 mt-1">Modify items and quantities</p>
+                {editingOrder.order_type === 'DINE_IN' && editingOrder.table_code && (
+                  <p className="text-sm text-blue-600 font-medium mt-1">Table: {editingOrder.table_code}</p>
+                )}
               </div>
               <button
                 onClick={cancelEdit}
@@ -946,18 +943,45 @@ const CafeOrderSystem = () => {
                 <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                 Add Items
               </h3>
-              <div className="grid grid-cols-2 gap-3">
-                {menuItems.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => addItemToEditingOrder(item)}
-                    className="bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white p-3 rounded-lg font-medium text-sm transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg"
-                  >
-                    <div className="font-semibold text-xs leading-tight">{item.name}</div>
-                    <div className="text-xs opacity-90 mt-1">₹{item.price}</div>
-                  </button>
-                ))}
+
+              {/* Search Bar for Edit Order */}
+              <div className="relative mb-4">
+                <input
+                  type="text"
+                  placeholder="Search menu items..."
+                  value={editOrderSearchTerm}
+                  onChange={(e) => setEditOrderSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm text-black"
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {menuItems
+                  .filter(item => item.name.toLowerCase().includes(editOrderSearchTerm.toLowerCase()))
+                  .map(item => (
+                    <button
+                      key={item.id}
+                      onClick={() => addItemToEditingOrder(item)}
+                      className="bg-gradient-to-r from-red-500 to-red-700 hover:from-red-600 hover:to-red-800 text-white p-3 rounded-lg font-medium text-sm transition-all duration-200 transform hover:scale-105 shadow-md hover:shadow-lg"
+                    >
+                      <div className="font-semibold text-xs leading-tight">{item.name}</div>
+                      <div className="text-xs opacity-90 mt-1">₹{item.price}</div>
+                    </button>
+                  ))}
+              </div>
+
+              {/* No items found message */}
+              {menuItems.filter(item => item.name.toLowerCase().includes(editOrderSearchTerm.toLowerCase())).length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <div className="text-sm">No menu items found</div>
+                  <div className="text-xs mt-1">Try adjusting your search</div>
+                </div>
+              )}
             </div>
 
             {/* Total and Action Buttons */}
@@ -1004,6 +1028,11 @@ const CafeOrderSystem = () => {
           <h2 className="font-semibold text-gray-800 text-lg mb-4 flex items-center gap-2">
             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
             Current Order
+            {selectedTable && (
+              <span className="text-sm text-blue-800 font-medium ml-2">
+                - Table: {selectedTable.table_code} - {selectedTable.table_name}
+              </span>
+            )}
           </h2>
 
           <div className="space-y-3 mb-4">
