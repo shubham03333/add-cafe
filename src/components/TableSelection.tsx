@@ -15,6 +15,11 @@ const TableSelection = ({ onTableSelect, onBack }: TableSelectionProps) => {
 
   useEffect(() => {
     fetchTables();
+
+    // Auto-refresh every 60 seconds
+    const interval = setInterval(fetchTables, 60000);
+
+    return () => clearInterval(interval);
   }, []);
 
   const fetchTables = async () => {
@@ -100,14 +105,23 @@ const TableSelection = ({ onTableSelect, onBack }: TableSelectionProps) => {
               <button
                 key={table.id}
                 type="button"
-                onClick={() => onTableSelect(table)}
-                className="bg-white hover:bg-gray-50 text-gray-900 p-6 rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-gray-200 hover:border-red-300"
+                onClick={() => !table.is_occupied && onTableSelect(table)}
+                disabled={table.is_occupied}
+                className={`p-6 rounded-2xl shadow-lg transition-all duration-300 border-2 ${
+                  table.is_occupied
+                    ? 'bg-red-50 text-red-900 border-red-300 cursor-not-allowed opacity-75'
+                    : 'bg-white hover:bg-gray-50 text-gray-900 hover:shadow-xl border-gray-200 hover:border-red-300'
+                }`}
               >
                 <div className="text-center">
-                  <div className="text-3xl mb-2">🍽️</div>
+                  <div className={`text-3xl mb-2 ${table.is_occupied ? 'text-red-500' : ''}`}>
+                    {table.is_occupied ? '🚫' : '🍽️'}
+                  </div>
                   <div className="text-lg font-bold mb-1">{table.table_name}</div>
                   <div className="text-sm text-gray-600">Capacity: {table.capacity}</div>
-                  <div className="text-xs text-gray-500 mt-2">Tap to select</div>
+                  <div className={`text-xs mt-2 ${table.is_occupied ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
+                    {table.is_occupied ? 'Occupied' : 'Tap to select'}
+                  </div>
                 </div>
               </button>
             ))}

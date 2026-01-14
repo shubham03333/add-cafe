@@ -125,4 +125,5 @@ export interface Table {
   table_name: string;
   capacity: number;
   is_active: boolean;
+  is_occupied?: boolean;
 }

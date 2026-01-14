@@ -3,11 +3,35 @@ import { executeQuery } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
-    const rows = await executeQuery(
-      'SELECT id, table_code, table_name, capacity, is_active FROM tables_master WHERE is_active = 1 ORDER BY table_code'
-    ) as any[];
+    // Get tables with occupancy status
+    const rows = await executeQuery(`
+      SELECT
+        t.id,
+        t.table_code,
+        t.table_name,
+        t.capacity,
+        t.is_active,
+        CASE
+          WHEN EXISTS (
+            SELECT 1 FROM orders o
+            WHERE o.table_id = t.id
+            AND o.order_type = 'DINE_IN'
+            AND o.status NOT IN ('served', 'cancelled')
+          ) THEN 1
+          ELSE 0
+        END as is_occupied
+      FROM tables_master t
+      WHERE t.is_active = 1
+      ORDER BY t.table_code
+    `) as any[];
 
-    return NextResponse.json(rows);
+    // Convert is_occupied to boolean
+    const tables = rows.map(row => ({
+      ...row,
+      is_occupied: Boolean(row.is_occupied)
+    }));
+
+    return NextResponse.json(tables);
   } catch (error) {
     console.error('Error fetching tables:', error);
     return NextResponse.json(
