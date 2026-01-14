@@ -55,6 +55,12 @@ const CafeOrderSystem = () => {
   const [selectedOrderType, setSelectedOrderType] = useState<'DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | null>('DINE_IN');
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
 
+  // New UI state for compact menu display
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>('All');
+  const [viewMode, setViewMode] = useState<'all' | 'favorites'>('all');
+  const [favorites, setFavorites] = useState<number[]>([]);
+
   // Handle table selection
   const handleTableSelect = (table: Table) => {
     setSelectedTable(table);
@@ -803,6 +809,72 @@ const CafeOrderSystem = () => {
 
 
 
+      {/* Search and Filter Controls */}
+      <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
+        {/* <h2 className="font-semibold text-gray-800 text-lg mb-4">Search & Filter</h2> */}
+        <div className="space-y-3">
+          {/* Search Bar */}
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search menu items..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm text-black"
+            />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+          </div>
+
+          {/* Category and View Mode Filters */}
+          <div className="flex flex-wrap gap-2">
+            {/* Category Filter */}
+            <div className="flex flex-wrap gap-1">
+              {['All', ...Array.from(new Set(menuItems.map(item => item.category)))].map(category => (
+                <button
+                  key={category}
+                  onClick={() => setSelectedCategory(category === 'All' ? null : category)}
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                    (selectedCategory === category || (category === 'All' && selectedCategory === null))
+                      ? 'bg-red-600 text-white'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {category}
+                </button>
+              ))}
+            </div>
+
+            {/* View Mode Toggle */}
+            <div className="flex gap-1 ml-auto">
+              <button
+                onClick={() => setViewMode('all')}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  viewMode === 'all'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setViewMode('favorites')}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  viewMode === 'favorites'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                ⭐ Favorites
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Edit Order Modal */}
       {editingOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50 transition-opacity duration-300">
@@ -994,22 +1066,73 @@ const CafeOrderSystem = () => {
       <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
         <h2 className="font-semibold text-gray-800 text-lg mb-4">Menu Items</h2>
 
+        {/* Filtered Menu Items */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-          {menuItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => addToOrder(item, 1)}
-              className="w-full p-1.5 sm:p-2 rounded-lg text-center font-medium min-h-[60px] sm:min-h-[70px] flex flex-col justify-center transition-all duration-300 shadow-md hover:shadow-lg bg-gradient-to-br from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 cursor-pointer hover:scale-105"
-            >
-              <div className="font-semibold text-[10px] sm:text-[11px] leading-tight px-0.5 overflow-hidden" style={{ 
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical'
-              }}>{item.name}</div>
-              <div className="text-[9px] sm:text-[10px] opacity-90 mt-0.5 bg-white/20 rounded px-0.5 py-0.5">₹{item.price}</div>
-            </button>
-          ))}
+          {menuItems
+            .filter(item => {
+              // Search filter
+              const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+
+              // Category filter
+              const matchesCategory = selectedCategory === null || item.category === selectedCategory;
+
+              // View mode filter
+              const matchesViewMode = viewMode === 'all' || favorites.includes(item.id);
+
+              return matchesSearch && matchesCategory && matchesViewMode;
+            })
+            .map(item => (
+              <div key={item.id} className="relative">
+                <button
+                  onClick={() => addToOrder(item, 1)}
+                  className="w-full p-1.5 sm:p-2 rounded-lg text-center font-medium min-h-[60px] sm:min-h-[70px] flex flex-col justify-center transition-all duration-300 shadow-md hover:shadow-lg bg-gradient-to-br from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 cursor-pointer hover:scale-105"
+                >
+                  <div className="font-semibold text-[10px] sm:text-[11px] leading-tight px-0.5 overflow-hidden" style={{
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical'
+                  }}>{item.name}</div>
+                  <div className="text-[9px] sm:text-[10px] opacity-90 mt-0.5 bg-white/20 rounded px-0.5 py-0.5">₹{item.price}</div>
+                </button>
+
+                {/* Favorite Toggle */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setFavorites(prev =>
+                      prev.includes(item.id)
+                        ? prev.filter(id => id !== item.id)
+                        : [...prev, item.id]
+                    );
+                  }}
+                  className="absolute top-1 right-1 p-1 rounded-full bg-white/80 hover:bg-white transition-colors"
+                  title={favorites.includes(item.id) ? 'Remove from favorites' : 'Add to favorites'}
+                >
+                  <svg
+                    className={`w-3 h-3 ${favorites.includes(item.id) ? 'text-yellow-500 fill-current' : 'text-gray-400'}`}
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                  </svg>
+                </button>
+              </div>
+            ))}
         </div>
+
+        {/* No items found message */}
+        {menuItems.filter(item => {
+          const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+          const matchesCategory = selectedCategory === null || item.category === selectedCategory;
+          const matchesViewMode = viewMode === 'all' || favorites.includes(item.id);
+          return matchesSearch && matchesCategory && matchesViewMode;
+        }).length === 0 && (
+          <div className="text-center py-8 text-gray-500">
+            <div className="text-sm">No menu items found</div>
+            <div className="text-xs mt-1">Try adjusting your search or filters</div>
+          </div>
+        )}
       </div>
 
       {/* Order Queue */}
