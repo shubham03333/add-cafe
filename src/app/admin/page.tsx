@@ -25,6 +25,9 @@ const AdminControlPanel = () => {
     category: '',
     is_available: true
   });
+  const [showNewCategoryInput, setShowNewCategoryInput] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [availableCategories, setAvailableCategories] = useState<string[]>([]);
   const [todaysSales, setTodaysSales] = useState({ total_orders: 0, total_revenue: 0 });
   const [totalRevenue, setTotalRevenue] = useState({ total_orders: 0, total_revenue: 0 });
   const [salesLoading, setSalesLoading] = useState(false);
@@ -93,6 +96,9 @@ const AdminControlPanel = () => {
       if (!response.ok) throw new Error('Failed to fetch menu');
       const data = await response.json();
       setMenuItems(data);
+      // Update available categories from fetched menu items
+      const categories = Array.from(new Set(data.map((item: MenuItem) => item.category).filter((cat) => cat && typeof cat === 'string' && cat.trim()))) as string[];
+      setAvailableCategories(categories);
     } catch (err) {
       setError('Failed to load menu');
       console.error(err);
@@ -298,7 +304,15 @@ const AdminControlPanel = () => {
 
       setEditingItem(null);
       setNewItem({ name: '', price: 0, category: '', is_available: true });
+      setShowNewCategoryInput(false);
+      setNewCategoryName('');
       setError(null); // Clear any previous errors
+
+      // If a new category was added, update the available categories immediately
+      if (!editingItem && itemToSave.category && !availableCategories.includes(itemToSave.category)) {
+        setAvailableCategories(prev => [...prev, itemToSave.category]);
+      }
+
       await fetchMenu();
 
     } catch (err) {
@@ -500,16 +514,70 @@ const AdminControlPanel = () => {
                 
                 <div>
                   <label className="block text-sm font-medium text-gray-800 mb-1">Category</label>
-                  <input
-                    type="text"
-                    value={editingItem?.category || newItem.category || ''}
-                    onChange={(e) => editingItem 
-                      ? setEditingItem({ ...editingItem, category: e.target.value })
-                      : setNewItem({ ...newItem, category: e.target.value })
-                    }
-                    className="w-full p-2 border border-gray-300 rounded text-gray-900"
-                    placeholder="Category"
-                  />
+                  {!showNewCategoryInput ? (
+                    <select
+                      value={editingItem?.category || newItem.category || ''}
+                      onChange={(e) => {
+                        if (e.target.value === 'create_new') {
+                          setShowNewCategoryInput(true);
+                          setNewCategoryName('');
+                        } else {
+                          editingItem
+                            ? setEditingItem({ ...editingItem, category: e.target.value })
+                            : setNewItem({ ...newItem, category: e.target.value });
+                        }
+                      }}
+                      className="w-full p-2 border border-gray-300 rounded text-gray-900"
+                    >
+                      <option value="">Select Category</option>
+                      {availableCategories.map(category => (
+                        <option key={category} value={category}>{category}</option>
+                      ))}
+                      <option value="create_new">+ Create New Category</option>
+                    </select>
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        type="text"
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        className="w-full p-2 border border-gray-300 rounded text-gray-900"
+                        placeholder="Enter new category name"
+                        autoFocus
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (newCategoryName.trim()) {
+                              const trimmedCategory = newCategoryName.trim();
+                              editingItem
+                                ? setEditingItem({ ...editingItem, category: trimmedCategory })
+                                : setNewItem({ ...newItem, category: trimmedCategory });
+                              if (!availableCategories.includes(trimmedCategory)) {
+                                setAvailableCategories(prev => [...prev, trimmedCategory]);
+                              }
+                              setShowNewCategoryInput(false);
+                              setNewCategoryName('');
+                            }
+                          }}
+                          className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700"
+                        >
+                          Add
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowNewCategoryInput(false);
+                            setNewCategoryName('');
+                          }}
+                          className="px-3 py-1 bg-gray-300 text-gray-700 rounded text-sm hover:bg-gray-400"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex items-center">
