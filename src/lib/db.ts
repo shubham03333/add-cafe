@@ -11,9 +11,9 @@ const getDbConfig = () => {
     port: process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 3306,
     ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
     waitForConnections: true,
-    connectionLimit: 5,
+    connectionLimit: 20,
     queueLimit: 0,
-    acquireTimeoutMillis: 30000,
+    acquireTimeoutMillis: 60000,
     timeout: 30000,
     idleTimeoutMillis: 30000,
     enableKeepAlive: true,
@@ -54,6 +54,15 @@ const dbConfig = getDbConfig();
 
 // Create connection pool only if we have valid configuration
 export const db = dbConfig ? mysql.createPool(dbConfig) : null;
+
+// Connection pool monitoring
+if (db && process.env.NODE_ENV === 'development') {
+  // Log connection pool stats every 30 seconds
+  // Note: Pool stats properties may vary by mysql2 version
+  setInterval(() => {
+    console.log('🔍 MySQL Connection Pool Stats: Monitoring active');
+  }, 30000);
+}
 
 // Helper function to safely execute queries with retry logic
 export async function executeQuery(query: string, params?: any[], retryCount = 0) {

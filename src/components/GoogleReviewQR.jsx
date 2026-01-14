@@ -14,7 +14,7 @@ const GoogleReviewQR = ({ size = 80 }) => {
         className="print:block"
       />
       <p className="text-xs text-center text-gray-600 print:text-black mt-1 print:mt-0.5">
-        Scan to rate us on Google ⭐⭐⭐⭐⭐
+        Scan to rate us on Google!
       </p>
     </div>
   );
