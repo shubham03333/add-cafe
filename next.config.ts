@@ -44,7 +44,7 @@ export default withPWA({
   dest: "public",
   register: true,
   skipWaiting: true,
-  disable: false, // Enable PWA for offline functionality
+  disable: process.env.NODE_ENV === 'development', // Disable PWA in development
   runtimeCaching: [
     {
       urlPattern: /^https?.*/,

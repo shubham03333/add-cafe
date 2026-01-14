@@ -1561,12 +1561,13 @@ const CafeOrderSystem = () => {
     const printUrl =
       `my.bluetoothprint.scheme://http://${domain}/api/print/order/${viewingOrder.id}`;
 
-    // Use hidden iframe to open custom scheme without navigating main window
-    const iframe = document.createElement('iframe');
-    iframe.src = printUrl;
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
-    setTimeout(() => document.body.removeChild(iframe), 1000);
+    // Use a temporary anchor element to open custom scheme
+    const link = document.createElement('a');
+    link.href = printUrl;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
 
     openPaymentModeModal(viewingOrder);
   }}
