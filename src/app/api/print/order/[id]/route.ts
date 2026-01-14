@@ -1,5 +1,7 @@
 import { NextRequest } from 'next/server';
 import { executeQuery } from '@/lib/db';
+import fs from 'fs';
+import path from 'path';
 
 type PrintCommand = {
   type: number;       // 0 = text
@@ -17,7 +19,7 @@ export async function GET(
 
   // 1️⃣ Fetch order from DB
   const rows = await executeQuery(
-    'SELECT order_number, order_time, total, items FROM orders WHERE id = ?',
+    'SELECT o.order_number, o.order_time, o.total, o.items, o.order_type, t.table_code, t.table_name FROM orders o LEFT JOIN tables_master t ON o.table_id = t.id WHERE o.id = ?',
     [orderId]
   ) as any[];
 
@@ -52,6 +54,23 @@ export async function GET(
   });
 
   const commands: PrintCommand[] = [];
+
+  /* ================= LOGO ================= */
+
+  try {
+    const logoPath = path.join(process.cwd(), 'public', 'addbilllogo.png');
+    const logoBuffer = fs.readFileSync(logoPath);
+    const logoBase64 = logoBuffer.toString('base64');
+
+    commands.push({
+      type: 1, // Assuming type 1 is for image
+      content: logoBase64,
+      align: 1 // Center align
+    });
+  } catch (error) {
+    console.error('Error loading logo:', error);
+    // Continue without logo if error
+  }
 
   /* ================= HEADER ================= */
 
@@ -109,6 +128,21 @@ export async function GET(
     content: `Date : ${date} : ${time}`,
     align: 1
   });
+
+  // Add table info or order type
+  if (order.order_type === 'DINE_IN' && order.table_code) {
+    commands.push({
+      type: 0,
+      content: `Table   : ${order.table_code}`,
+      align: 1
+    });
+  } else if (order.order_type && order.order_type !== 'DINE_IN') {
+    commands.push({
+      type: 0,
+      content: `Type    : ${order.order_type.replace('_', ' ')}`,
+      align: 1
+    });
+  }
 
   commands.push({
     type: 0,

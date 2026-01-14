@@ -85,9 +85,12 @@ export async function GET(request: NextRequest) {
 
     // Get paginated orders
     const ordersQuery = `
-      SELECT id, order_number, items, total, status, payment_status, payment_mode, order_time
-      FROM orders${whereClause}
-      ORDER BY order_time DESC
+      SELECT o.id, o.order_number, o.items, o.total, o.status, o.payment_status, o.payment_mode, o.order_time, o.order_type, o.table_id,
+             t.table_code, t.table_name
+      FROM orders o
+      LEFT JOIN tables_master t ON o.table_id = t.id
+      ${whereClause.replace('WHERE', 'WHERE o.').replace('orders', 'o')}
+      ORDER BY o.order_time DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
 
@@ -140,18 +143,50 @@ export async function POST(request: NextRequest) {
     const currentDate = new Date();
     const today = currentDate.toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
 
-    // Fetch the last order number for today
-    const lastOrderQuery = 'SELECT MAX(order_number) AS last_order_number FROM orders WHERE DATE(order_time) = ?';
-    const lastOrderResult: any[] = await executeQuery(lastOrderQuery, [today]) as any[];
-    const lastOrderNumber = lastOrderResult[0]?.last_order_number || '0'; // Default to '0' if no orders exist
+    // Validate order_type
+    const validOrderTypes = ['DINE_IN', 'TAKEAWAY', 'DELIVERY'];
+    if (!body.order_type || !validOrderTypes.includes(body.order_type)) {
+      return NextResponse.json(
+        { error: 'Invalid order_type. Must be DINE_IN, TAKEAWAY, or DELIVERY' },
+        { status: 400 }
+      );
+    }
 
-    // Increment the order number
-    const newOrderNumber = (parseInt(lastOrderNumber) + 1).toString().padStart(3, '0'); // Pad to 3 digits
+    // Validate table_id for DINE_IN orders
+    if (body.order_type === 'DINE_IN') {
+      if (!body.table_id) {
+        return NextResponse.json(
+          { error: 'table_id is required for DINE_IN orders' },
+          { status: 400 }
+        );
+      }
+
+      // Check if table exists and is active
+      const tableCheck = await executeQuery(
+        'SELECT id FROM tables_master WHERE id = ? AND is_active = 1',
+        [body.table_id]
+      ) as any[];
+
+      if (tableCheck.length === 0) {
+        return NextResponse.json(
+          { error: 'Invalid or inactive table' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Fetch the last order number for today (cast to integer for proper numerical MAX)
+    const lastOrderQuery = 'SELECT MAX(CAST(order_number AS UNSIGNED)) AS last_order_number FROM orders WHERE DATE(order_time) = ?';
+    const lastOrderResult: any[] = await executeQuery(lastOrderQuery, [today]) as any[];
+    const lastOrderNumber = lastOrderResult[0]?.last_order_number || 0; // Default to 0 if no orders exist
+
+    // Increment the order number and pad to 3 digits
+    const newOrderNumber = (lastOrderNumber + 1).toString().padStart(3, '0');
 
     // Set initial status to 'preparing' and payment status to 'pending'
     await executeQuery(
-      'INSERT INTO orders (id, order_number, items, total, status, payment_status) VALUES (?, ?, ?, ?, ?, ?)',
-      [orderId, newOrderNumber, JSON.stringify(body.items), body.total, 'preparing', 'pending']
+      'INSERT INTO orders (id, order_number, items, total, status, payment_status, order_type, table_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [orderId, newOrderNumber, JSON.stringify(body.items), body.total, 'preparing', 'pending', body.order_type, body.table_id || null]
     );
 
     return NextResponse.json({ id: orderId, success: true, order_number: newOrderNumber });

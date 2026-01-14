@@ -91,7 +91,8 @@ const CustomerOrderSystem = () => {
       
       const orderData: CreateOrderRequest = {
         items: buildingOrder,
-        total
+        total,
+        order_type: 'DINE_IN'
       };
 
       const response = await fetch('/api/orders', {

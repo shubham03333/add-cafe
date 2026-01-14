@@ -16,8 +16,10 @@ export const useOfflineStatus = () => {
       console.log('Connection lost');
     };
 
-    // Set initial status
-    setIsOffline(!navigator.onLine);
+    // Set initial status - check if navigator is available
+    if (typeof navigator !== 'undefined') {
+      setIsOffline(!navigator.onLine);
+    }
 
     // Add event listeners
     window.addEventListener('online', handleOnline);

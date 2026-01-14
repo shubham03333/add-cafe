@@ -1,8 +1,9 @@
-'use client';
+ 'use client';
 
 import { useState, useEffect } from 'react';
-import { MenuItem, OrderItem, CreateOrderRequest, Order } from '@/types';
+import { MenuItem, OrderItem, CreateOrderRequest, Order, Table } from '@/types';
 import { useCustomerAuth } from '@/contexts/CustomerAuthContext';
+import TableSelection from './TableSelection';
 
 // Google Pay type declarations
 declare global {
@@ -53,7 +54,21 @@ const CustomerOrderSystem = () => {
   const [showNameModal, setShowNameModal] = useState(false);
   const [tempName, setTempName] = useState<string>('');
 
+  // Order flow states
+  const [currentStep, setCurrentStep] = useState<'tableSelection' | 'menu'>('tableSelection');
+  const [selectedOrderType, setSelectedOrderType] = useState<'DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | null>('DINE_IN');
+  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
 
+  // Order flow handlers
+  const handleTableSelect = (table: Table) => {
+    setSelectedTable(table);
+    setCurrentStep('menu');
+  };
+
+  const handleBackToTableSelection = () => {
+    setCurrentStep('tableSelection');
+    setSelectedTable(null);
+  };
 
   // New state for recent orders modal and data
   const [showRecentOrdersModal, setShowRecentOrdersModal] = useState(false);
@@ -334,12 +349,19 @@ const CustomerOrderSystem = () => {
   };
 
   const addToOrder = (item: MenuItem, quantity: number) => {
+    console.log('addToOrder called with item:', item.name, 'id:', item.id, 'quantity:', quantity);
     setBuildingOrder(prev => {
+      console.log('prev buildingOrder:', prev);
       const existing = prev.find(p => p.id === item.id);
+      console.log('existing:', existing);
       if (existing) {
-        return prev.map(p => p.id === item.id ? {...p, quantity: p.quantity + quantity} : p);
+        const newOrder = prev.map(p => p.id === item.id ? {...p, quantity: p.quantity + quantity} : p);
+        console.log('updated existing, new buildingOrder:', newOrder);
+        return newOrder;
       }
-      return [...prev, { ...item, quantity }];
+      const newOrder = [...prev, { ...item, quantity }];
+      console.log('added new, new buildingOrder:', newOrder);
+      return newOrder;
     });
   };
 
@@ -352,7 +374,9 @@ const CustomerOrderSystem = () => {
 
       const orderData: CreateOrderRequest = {
         items: buildingOrder,
-        total
+        total,
+        order_type: selectedOrderType!,
+        table_id: selectedOrderType === 'DINE_IN' ? selectedTable?.id.toString() : null
       };
 
       const response = await fetch('/api/orders', {
@@ -661,6 +685,12 @@ const CustomerOrderSystem = () => {
     );
   }
 
+  // Conditional rendering based on current step
+  if (currentStep === 'tableSelection') {
+    return <TableSelection onTableSelect={handleTableSelect} />;
+  }
+
+  // Menu step (currentStep === 'menu')
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 p-2 sm:p-4 max-w-md mx-auto">
       {/* Modern Header */}
@@ -794,7 +824,7 @@ const CustomerOrderSystem = () => {
 
             {/* Order Items Display */}
             {(() => {
-              const currentOrder = activeOrders.find(order => order.order_number === orderNumber);
+              const currentOrder = Array.isArray(activeOrders) ? activeOrders.find(order => order.order_number === orderNumber) : null;
               if (currentOrder && currentOrder.items && currentOrder.items.length > 0) {
                 return (
                   <div className="border-t border-gray-200 pt-4">
@@ -914,13 +944,8 @@ const CustomerOrderSystem = () => {
           {filteredMenuItems.map(item => (
             <button
               key={item.id}
-              onClick={() => !orderNumber && addToOrder(item, 1)}
-              disabled={!!orderNumber}
-      className={`w-full p-3 rounded-xl text-center font-medium min-h-[180px] flex flex-col justify-center transition-all duration-300 shadow-lg hover:shadow-xl cursor-pointer hover:scale-105 active:scale-95 ${
-                orderNumber
-                  ? 'bg-gray-200 cursor-not-allowed opacity-60'
-                  : 'bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 active:from-red-700 active:to-red-800'
-              }`}
+              onClick={() => addToOrder(item, 1)}
+      className="w-full p-3 rounded-xl text-center font-medium min-h-[180px] flex flex-col justify-center transition-all duration-300 shadow-lg hover:shadow-xl cursor-pointer hover:scale-105 active:scale-95 bg-gradient-to-br from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 active:from-red-700 active:to-red-800"
             >
               <div className="flex flex-col items-center gap-2">
                 <div className="relative">
@@ -953,7 +978,7 @@ const CustomerOrderSystem = () => {
       </div>
 
       {/* Fixed Bottom Cart Bar */}
-      {buildingOrder.length > 0 && !orderNumber && (
+      {buildingOrder.length > 0 && (
         <div className="fixed bottom-16 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40 max-w-md mx-auto">
           <div className="p-4">
             <div className="flex items-center justify-between">
@@ -1009,7 +1034,7 @@ const CustomerOrderSystem = () => {
                 {(() => {
                   // Show building order items if no order number, otherwise show placed order items
                   const itemsToShow = orderNumber
-                    ? (activeOrders.find(order => order.order_number === orderNumber)?.items || [])
+                    ? (activeOrders && Array.isArray(activeOrders) ? activeOrders.find(order => order.order_number === orderNumber)?.items || [] : [])
                     : buildingOrder;
 
                   return itemsToShow.map(item => (
@@ -1065,7 +1090,7 @@ const CustomerOrderSystem = () => {
                   <span className="font-bold text-gray-900 text-lg sm:text-xl">
                     Total: ₹{(() => {
                       if (orderNumber) {
-                        const currentOrder = activeOrders.find(order => order.order_number === orderNumber);
+                        const currentOrder = activeOrders && Array.isArray(activeOrders) ? activeOrders.find(order => order.order_number === orderNumber) : null;
                         return currentOrder?.total || 0;
                       }
                       return buildingOrder.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -1074,7 +1099,7 @@ const CustomerOrderSystem = () => {
                   <div className="text-xs sm:text-sm text-gray-600">
                     {(() => {
                       if (orderNumber) {
-                        const currentOrder = activeOrders.find(order => order.order_number === orderNumber);
+                        const currentOrder = activeOrders && Array.isArray(activeOrders) ? activeOrders.find(order => order.order_number === orderNumber) : null;
                         const itemCount = currentOrder?.items?.length || 0;
                         return `${itemCount} item${itemCount !== 1 ? 's' : ''}`;
                       }

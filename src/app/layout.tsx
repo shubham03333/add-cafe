@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   description: "Cafe order management system",
   icons: {
     icon: '/favicon.ico',
+    apple: '/logo.png',
   },
   manifest: '/manifest.json',
   appleWebApp: {
@@ -27,12 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="apple-touch-icon" href="/logo.png" />
-      </head>
-      <body
-        className="antialiased"
-      >
+      <body className="antialiased">
         <CustomerAuthProvider>
           {children}
         </CustomerAuthProvider>
