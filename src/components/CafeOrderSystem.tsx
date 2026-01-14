@@ -57,7 +57,7 @@ const CafeOrderSystem = () => {
 
   // New UI state for compact menu display
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>('All');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'all' | 'favorites'>('all');
   const [favorites, setFavorites] = useState<number[]>([]);
 
@@ -832,12 +832,12 @@ const CafeOrderSystem = () => {
           {/* Category and View Mode Filters */}
           <div className="flex flex-wrap gap-2">
             {/* Category Filter */}
-            <div className="flex flex-wrap gap-1">
-              {['All', ...Array.from(new Set(menuItems.map(item => item.category)))].map(category => (
+            <div className="flex overflow-x-auto gap-1 pb-1 scrollbar-hide">
+              {['All', ...Array.from(new Set(menuItems.map(item => item.category).filter(cat => cat !== 'All')))].map(category => (
                 <button
                   key={category}
                   onClick={() => setSelectedCategory(category === 'All' ? null : category)}
-                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  className={`px-3 py-1 rounded-full text-xs font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
                     (selectedCategory === category || (category === 'All' && selectedCategory === null))
                       ? 'bg-red-600 text-white'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
