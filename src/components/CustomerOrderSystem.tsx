@@ -70,6 +70,12 @@ const CustomerOrderSystem = () => {
     setSelectedTable(null);
   };
 
+  const handleTakeawaySelect = () => {
+    setSelectedOrderType('TAKEAWAY');
+    setSelectedTable(null);
+    setCurrentStep('menu');
+  };
+
   // New state for recent orders modal and data
   const [showRecentOrdersModal, setShowRecentOrdersModal] = useState(false);
   const [recentOrders, setRecentOrders] = useState<Order[]>([]);
@@ -687,7 +693,7 @@ const CustomerOrderSystem = () => {
 
   // Conditional rendering based on current step
   if (currentStep === 'tableSelection') {
-    return <TableSelection onTableSelect={handleTableSelect} />;
+    return <TableSelection onTableSelect={handleTableSelect} onTakeawaySelect={handleTakeawaySelect} />;
   }
 
   // Menu step (currentStep === 'menu')

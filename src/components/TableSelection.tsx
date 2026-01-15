@@ -6,9 +6,10 @@ import { Table } from '@/types';
 interface TableSelectionProps {
   onTableSelect: (table: Table) => void;
   onBack?: () => void;
+  onTakeawaySelect?: () => void;
 }
 
-const TableSelection = ({ onTableSelect, onBack }: TableSelectionProps) => {
+const TableSelection = ({ onTableSelect, onBack, onTakeawaySelect }: TableSelectionProps) => {
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -91,7 +92,17 @@ const TableSelection = ({ onTableSelect, onBack }: TableSelectionProps) => {
 
       {/* Table Selection */}
       <div className="mb-6">
-        <h2 className="text-xl font-semibold text-gray-800 mb-4">Available Tables</h2>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-gray-800">Available Tables</h2>
+          {onTakeawaySelect && (
+            <button
+              onClick={onTakeawaySelect}
+              className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-4 py-2 rounded-xl font-semibold text-sm shadow-lg hover:shadow-xl transition-all duration-200"
+            >
+              TAKEAWAY
+            </button>
+          )}
+        </div>
 
         {tables.filter(table => table.is_active).length === 0 ? (
           <div className="text-center py-12 text-gray-500 bg-white rounded-lg shadow-md">

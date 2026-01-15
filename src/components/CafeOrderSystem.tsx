@@ -75,6 +75,13 @@ const CafeOrderSystem = () => {
     setCurrentStep('menu');
   };
 
+  // Handle takeaway selection
+  const handleTakeawaySelect = () => {
+    setSelectedOrderType('TAKEAWAY');
+    setSelectedTable(null);
+    setCurrentStep('menu');
+  };
+
   const closeOrderPopup = () => {
     setViewingOrder(null);
   };
@@ -736,7 +743,7 @@ const CafeOrderSystem = () => {
 
   // Conditional rendering based on current step
   if (currentStep === 'table_selection') {
-    return <TableSelection onTableSelect={handleTableSelect} />;
+    return <TableSelection onTableSelect={handleTableSelect} onTakeawaySelect={handleTakeawaySelect} />;
   }
 
   // Menu step (currentStep === 'menu')
