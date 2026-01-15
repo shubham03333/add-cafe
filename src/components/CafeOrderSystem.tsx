@@ -83,7 +83,7 @@ const CafeOrderSystem = () => {
     setViewingOrder(order);
   };
 
-  // Fetch menu items and set up real-time updates
+  // Fetch menu items and set up real-time updates with optimized polling
   useEffect(() => {
     // Instantiate SyncManager
     syncManagerRef.current = new SyncManager();
@@ -92,11 +92,14 @@ const CafeOrderSystem = () => {
     fetchOrders();
     fetchPopularItems();
 
-    // Set up polling for real-time updates
-    const pollingInterval = setInterval(() => {
+    // Set up polling for real-time updates with longer intervals to reduce memory usage
+    const ordersPollingInterval = setInterval(() => {
       fetchOrders();
-      fetchMenu(); // Also refresh menu items to reflect availability changes from admin
-    }, 3000); // Poll every 3 seconds
+    }, 5000); // Poll orders every 5 seconds (increased from 3)
+
+    const menuPollingInterval = setInterval(() => {
+      fetchMenu(); // Refresh menu items to reflect availability changes from admin
+    }, 30000); // Poll menu every 30 seconds (reduced frequency)
 
     // Listen for order update events (e.g., payment status changes)
     const handleOrderUpdate = () => {
@@ -106,9 +109,27 @@ const CafeOrderSystem = () => {
 
     window.addEventListener('orderUpdated', handleOrderUpdate);
 
-    // Clean up interval and event listener on component unmount
+    // Memory monitoring in development
+    let memoryCheckInterval: NodeJS.Timeout | null = null;
+    if (process.env.NODE_ENV === 'development') {
+      memoryCheckInterval = setInterval(() => {
+        if (typeof window !== 'undefined' && (window as any).performance?.memory) {
+          const memInfo = (window as any).performance.memory;
+          const usedMB = Math.round(memInfo.usedJSHeapSize / 1024 / 1024);
+          if (usedMB > 100) { // Log when browser memory exceeds 100MB
+            console.warn(`⚠️ High browser memory usage: ${usedMB}MB`);
+          }
+        }
+      }, 60000); // Check every minute
+    }
+
+    // Clean up intervals and event listener on component unmount
     return () => {
-      clearInterval(pollingInterval);
+      clearInterval(ordersPollingInterval);
+      clearInterval(menuPollingInterval);
+      if (memoryCheckInterval) {
+        clearInterval(memoryCheckInterval);
+      }
       window.removeEventListener('orderUpdated', handleOrderUpdate);
     };
   }, []);
