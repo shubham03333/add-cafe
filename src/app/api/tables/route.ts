@@ -3,7 +3,7 @@ import { executeQuery } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
-    // Get tables with occupancy status
+    // Get all tables with occupancy status (including inactive ones)
     const rows = await executeQuery(`
       SELECT
         t.id,
@@ -21,8 +21,13 @@ export async function GET(request: NextRequest) {
           ELSE 0
         END as is_occupied
       FROM tables_master t
-      WHERE t.is_active = 1
-      ORDER BY t.table_code
+      ORDER BY
+        CASE
+          WHEN t.table_code REGEXP '^[0-9]+$' THEN CAST(t.table_code AS UNSIGNED)
+          WHEN t.table_code REGEXP '^[A-Za-z]+[0-9]+$' THEN CAST(SUBSTRING(t.table_code, 2) AS UNSIGNED)
+          ELSE CAST(t.table_code AS UNSIGNED)
+        END,
+        t.table_code
     `) as any[];
 
     // Convert is_occupied to boolean

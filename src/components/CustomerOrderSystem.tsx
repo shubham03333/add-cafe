@@ -382,7 +382,7 @@ const CustomerOrderSystem = () => {
         items: buildingOrder,
         total,
         order_type: selectedOrderType!,
-        table_id: selectedOrderType === 'DINE_IN' ? selectedTable?.id.toString() : null
+        table_id: selectedOrderType === 'DINE_IN' ? selectedTable?.table_code : null
       };
 
       const response = await fetch('/api/orders', {

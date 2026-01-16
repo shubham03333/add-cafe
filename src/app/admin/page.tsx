@@ -905,7 +905,7 @@ const AdminControlPanel = () => {
             {/* Tables List */}
             <div className="bg-white rounded-lg shadow-lg p-6">
               <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">Tables ({tables.length})</h2>
+                <h2 className="text-xl font-semibold text-gray-900">Tables ({tables.filter(t => t.is_active).length} active, {tables.length} total)</h2>
                 <button
                   onClick={fetchTables}
                   className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 touch-manipulation min-h-[44px]"

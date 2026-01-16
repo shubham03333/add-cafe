@@ -5,11 +5,12 @@ import { Table } from '@/types';
 
 interface TableSelectionProps {
   onTableSelect: (table: Table) => void;
+  onOccupiedTableSelect?: (table: Table) => void;
   onBack?: () => void;
   onTakeawaySelect?: () => void;
 }
 
-const TableSelection = ({ onTableSelect, onBack, onTakeawaySelect }: TableSelectionProps) => {
+const TableSelection = ({ onTableSelect, onOccupiedTableSelect, onBack, onTakeawaySelect }: TableSelectionProps) => {
   const [tables, setTables] = useState<Table[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +29,22 @@ const TableSelection = ({ onTableSelect, onBack, onTakeawaySelect }: TableSelect
       const response = await fetch('/api/tables');
       if (!response.ok) throw new Error('Failed to fetch tables');
       const data = await response.json();
-      setTables(data);
+
+      // Sort tables by numeric table_code, handling formats like 'T01', '1', 'Table 1'
+      const sortedTables = data.sort((a: Table, b: Table) => {
+        // Extract numeric part from table_code
+        const getNumericCode = (code: string) => {
+          // Handle formats like 'T01', 'Table 1', '1'
+          const match = code.match(/(\d+)/);
+          return match ? parseInt(match[1], 10) : 0;
+        };
+
+        const aNum = getNumericCode(a.table_code);
+        const bNum = getNumericCode(b.table_code);
+        return aNum - bNum;
+      });
+
+      setTables(sortedTables);
     } catch (err) {
       setError('Failed to load tables');
       console.error(err);
@@ -113,28 +129,36 @@ const TableSelection = ({ onTableSelect, onBack, onTakeawaySelect }: TableSelect
         ) : (
           <div className="grid grid-cols-2 gap-4">
             {tables.filter(table => table.is_active).map((table) => (
-              <button
+              <div
                 key={table.id}
-                type="button"
-                onClick={() => !table.is_occupied && onTableSelect(table)}
-                disabled={table.is_occupied}
-                className={`p-6 rounded-2xl shadow-lg transition-all duration-300 border-2 ${
+                className={`relative p-6 rounded-2xl shadow-lg transition-all duration-300 border-2 ${
                   table.is_occupied
-                    ? 'bg-red-50 text-red-900 border-red-300 cursor-not-allowed opacity-75'
-                    : 'bg-white hover:bg-gray-50 text-gray-900 hover:shadow-xl border-gray-200 hover:border-red-300'
+                    ? 'bg-gray-100 text-gray-500 border-gray-300 opacity-60 cursor-not-allowed'
+                    : 'bg-white hover:bg-gray-50 text-gray-900 hover:shadow-xl border-gray-200 hover:border-red-300 cursor-pointer'
                 }`}
               >
                 <div className="text-center">
                   <div className={`text-3xl mb-2 ${table.is_occupied ? 'text-red-500' : ''}`}>
                     {table.is_occupied ? '🚫' : '🍽️'}
                   </div>
-                  <div className="text-lg font-bold mb-1">{table.table_name}</div>
+                  <div className="text-lg font-bold mb-1">Table {table.table_code}</div>
                   <div className="text-sm text-gray-600">Capacity: {table.capacity}</div>
                   <div className={`text-xs mt-2 ${table.is_occupied ? 'text-red-600 font-medium' : 'text-gray-500'}`}>
                     {table.is_occupied ? 'Occupied' : 'Tap to select'}
                   </div>
                 </div>
-              </button>
+                {!table.is_occupied && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      console.log('🔍 Selecting table:', table);
+                      onTableSelect(table);
+                    }}
+                    className="absolute inset-0 w-full h-full rounded-2xl"
+                    title="Select table"
+                  />
+                )}
+              </div>
             ))}
           </div>
         )}

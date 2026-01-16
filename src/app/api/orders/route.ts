@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     const statusFilter = searchParams.get('status') || '';
     const includeServed = searchParams.get('includeServed') === 'true';
     const loadAll = searchParams.get('loadAll') === 'true'; // Explicit flag to load all orders
+    const tableId = searchParams.get('table_id'); // Add table_id filter
 
     // If loadAll is true, use the old behavior (for backward compatibility)
     if (loadAll) {
@@ -29,13 +30,17 @@ export async function GET(request: NextRequest) {
           }
       }
 
+      if (tableId) {
+          whereClauses.push(`table_id = '${tableId}'`);
+      }
+
       if (whereClauses.length > 0) {
           query += ' WHERE ' + whereClauses.join(' AND ');
       }
       query += ' ORDER BY order_time ASC LIMIT 1000'; // Add reasonable limit even for loadAll
 
       const rows = await executeQuery(query) as any[];
-      console.log(`[ORDERS API] Fetching ALL orders - includeServed: ${includeServed}, statusFilter: ${statusFilter}`);
+      console.log(`[ORDERS API] Fetching ALL orders - includeServed: ${includeServed}, statusFilter: ${statusFilter}, tableId: ${tableId}`);
       console.log(`[ORDERS API] Found ${rows.length} orders`);
 
       const orders = rows.map(row => {
@@ -75,6 +80,10 @@ export async function GET(request: NextRequest) {
         }
     }
 
+    if (tableId) {
+        whereClauses.push(`table_id = '${tableId}'`);
+    }
+
     let whereClause = whereClauses.length > 0 ? ' WHERE ' + whereClauses.join(' AND ') : '';
 
     // Get total count
@@ -95,7 +104,7 @@ export async function GET(request: NextRequest) {
     `;
 
     const rows = await executeQuery(ordersQuery) as any[];
-    console.log(`[ORDERS API] Fetching paginated orders - page: ${page}, limit: ${limit}, statusFilter: ${statusFilter}`);
+    console.log(`[ORDERS API] Fetching paginated orders - page: ${page}, limit: ${limit}, statusFilter: ${statusFilter}, tableId: ${tableId}`);
     console.log(`[ORDERS API] Found ${rows.length} orders (total: ${totalOrders})`);
 
     const orders = rows.map(row => {
@@ -153,6 +162,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Validate table_id for DINE_IN orders
+    let tableId = null;
     if (body.order_type === 'DINE_IN') {
       if (!body.table_id) {
         return NextResponse.json(
@@ -161,9 +171,9 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Check if table exists and is active
+      // Check if table exists and is active, and get the integer id
       const tableCheck = await executeQuery(
-        'SELECT id FROM tables_master WHERE id = ? AND is_active = 1',
+        'SELECT id FROM tables_master WHERE table_code = ? AND is_active = 1',
         [body.table_id]
       ) as any[];
 
@@ -173,6 +183,9 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+
+      // Use the integer id from the database
+      tableId = tableCheck[0].id;
     }
 
     // Fetch the last order number for today (cast to integer for proper numerical MAX)
@@ -186,7 +199,7 @@ export async function POST(request: NextRequest) {
     // Set initial status to 'preparing' and payment status to 'pending'
     await executeQuery(
       'INSERT INTO orders (id, order_number, items, total, status, payment_status, order_type, table_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [orderId, newOrderNumber, JSON.stringify(body.items), body.total, 'preparing', 'pending', body.order_type, body.table_id || null]
+      [orderId, newOrderNumber, JSON.stringify(body.items), body.total, 'preparing', 'pending', body.order_type, tableId]
     );
 
     return NextResponse.json({ id: orderId, success: true, order_number: newOrderNumber });

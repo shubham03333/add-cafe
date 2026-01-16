@@ -72,6 +72,7 @@ export interface Order {
   order_time: string;
   updated_time?: string;
   table_code?: string;
+  table_name?: string;
   order_type?: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
 }
 

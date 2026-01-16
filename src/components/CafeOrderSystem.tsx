@@ -60,6 +60,10 @@ const CafeOrderSystem = () => {
   const [selectedOrderType, setSelectedOrderType] = useState<'DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | null>('DINE_IN');
   const [selectedTable, setSelectedTable] = useState<Table | null>(null);
 
+  // Table filter state for order queue
+  const [selectedTableFilter, setSelectedTableFilter] = useState<string | null>(null);
+  const [tables, setTables] = useState<Table[]>([]);
+
   // New UI state for compact menu display
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
@@ -71,14 +75,19 @@ const CafeOrderSystem = () => {
 
   // Handle table selection
   const handleTableSelect = (table: Table) => {
+    console.log('🔍 handleTableSelect called with table:', table);
     setSelectedTable(table);
+    console.log('🔍 selectedTable set to:', table);
     setCurrentStep('menu');
   };
+
+
 
   // Handle takeaway selection
   const handleTakeawaySelect = () => {
     setSelectedOrderType('TAKEAWAY');
     setSelectedTable(null);
+    // Don't clear editingOrder when navigating to menu
     setCurrentStep('menu');
   };
 
@@ -97,6 +106,7 @@ const CafeOrderSystem = () => {
 
     fetchMenu();
     fetchOrders();
+    fetchTables();
     fetchPopularItems();
 
     // Set up polling for real-time updates with longer intervals to reduce memory usage
@@ -175,13 +185,24 @@ const CafeOrderSystem = () => {
       const endDate = new Date();
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - 7);
-      
+
       const response = await fetch(`/api/sales-report?startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`);
       if (!response.ok) throw new Error('Failed to fetch popular items');
       const data = await response.json();
       setPopularItems(data.top_items || []);
     } catch (err) {
       console.error('Failed to fetch popular items:', err);
+    }
+  };
+
+  const fetchTables = async () => {
+    try {
+      const response = await fetch('/api/tables');
+      if (!response.ok) throw new Error('Failed to fetch tables');
+      const data = await response.json();
+      setTables(data);
+    } catch (err) {
+      console.error('Failed to fetch tables:', err);
     }
   };
 
@@ -243,7 +264,7 @@ const CafeOrderSystem = () => {
         payment_status: 'pending',
         order_time: new Date().toISOString(),
         order_type: selectedOrderType || 'DINE_IN',
-        table_id: selectedTable?.id.toString(),
+        table_id: selectedTable?.table_code,
         table_code: selectedTable?.table_code,
         sync_status: isOffline ? 'pending' : 'syncing',
         sync_attempts: 0,
@@ -275,7 +296,7 @@ const CafeOrderSystem = () => {
           items: buildingOrder,
           total,
           order_type: selectedOrderType || 'DINE_IN',
-          table_id: selectedTable?.id.toString() || null
+          table_id: selectedTable?.table_code || null
         };
 
         const response = await fetch('/api/orders', {
@@ -988,6 +1009,7 @@ const CafeOrderSystem = () => {
       {editingOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50 transition-opacity duration-300">
           <div className="bg-white rounded-xl p-6 max-w-md w-full max-h-[85vh] overflow-y-auto shadow-2xl border border-gray-200 transform transition-all duration-300 scale-100">
+
             {/* Header */}
             <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-200">
               <div>
@@ -1281,10 +1303,24 @@ const CafeOrderSystem = () => {
 
       {/* Order Queue */}
       <div className="bg-white rounded-lg shadow-lg p-4" data-order-queue>
-        <h2 className="font-semibold text-gray-800 mb-4 text-lg flex items-center gap-2">
-          <Clock className="w-6 h-6 text-red-600" />
-          Order Queue ({orders.length})
-        </h2>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-4">
+          <h2 className="font-semibold text-gray-800 text-lg flex items-center gap-2">
+            <Clock className="w-6 h-6 text-red-600" />
+            Order Queue ({orders.length})
+          </h2>
+          <select
+            value={selectedTableFilter || ''}
+            onChange={(e) => setSelectedTableFilter(e.target.value || null)}
+            className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent w-full sm:w-auto min-w-[120px]"
+          >
+            <option value="">All Tables</option>
+            {Array.from(new Set(orders.filter(order => order.status !== 'served' && order.table_code).map(order => order.table_code))).map(tableCode => (
+              <option key={tableCode} value={tableCode}>
+                Table {tableCode}
+              </option>
+            ))}
+          </select>
+        </div>
         
         {orders.length === 0 ? (
           <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
@@ -1295,7 +1331,9 @@ const CafeOrderSystem = () => {
         ) : (
           <div ref={ordersContainerRef} className="mt-2" style={{ maxHeight: '400px', overflowY: 'auto' }}>
             <div className="space-y-3 pr-1">
-              {orders.map(order => (
+              {orders
+                .filter(order => !selectedTableFilter || order.table_code === selectedTableFilter)
+                .map(order => (
                 <div 
                   key={order.id} 
                   className="p-4 sm:p-5 rounded-lg border-l-4 border-red-500 bg-gradient-to-r from-red-50 to-white shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer"
