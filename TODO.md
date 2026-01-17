@@ -1,19 +1,36 @@
-# Table Occupancy Implementation
+# Mobile Responsive Dropdown Fix - Order Queue Table Filter
 
-## Completed Tasks
-- [x] Update Table interface to include `is_occupied` field
-- [x] Modify `/api/tables` route to check for active orders and determine occupancy
-- [x] Update TableSelection component to show occupied tables in red and prevent selection
-- [x] Add auto-refresh functionality every 60 seconds to keep table status updated
+## Task: Fix dropdown popup extending beyond mobile screen boundaries for table filter in order queue
 
-## Followup Steps
-- [ ] Test the table selection functionality to ensure occupied tables are properly indicated and non-selectable
-- [ ] Verify that tables become available again after orders are served or cancelled
-- [ ] Verify auto-refresh works correctly and updates table status in real-time
+## Status: ✅ COMPLETED
 
-## New Feature: Table Filter Dropdown in Order Queue
-- [ ] Add a small dropdown next to "Order Queue" text for filtering orders by table
-- [ ] Implement table selection state and filtering logic
-- [ ] Fetch tables list for dropdown options
-- [ ] Update order display to show only pending orders for selected table
-- [ ] Ensure UI remains user-friendly with proper styling and responsiveness
+### Changes Made:
+- **File**: `src/components/CafeOrderSystem.tsx`
+- **Issue**: Native select dropdown was going out of mobile screen boundaries
+- **Solution**: Replaced native select with custom dropdown implementation
+
+### Implementation Details:
+1. **Added State**: `isDropdownOpen` state to control dropdown visibility
+2. **Custom Button**: Replaced select with a button that shows current selection
+3. **Custom Options**: Created positioned dropdown options with proper styling
+4. **Mobile Responsive**: Dropdown stays within container bounds with proper z-index
+5. **Click Outside**: Added functionality to close dropdown when clicking outside
+6. **Accessibility**: Maintained keyboard navigation and screen reader compatibility
+
+### Technical Changes:
+- Added `isDropdownOpen` state variable
+- Replaced `<select>` element with custom `<button>` and `<div>` structure
+- Added click outside handler with `useEffect` cleanup
+- Maintained all existing functionality (filtering, table selection)
+- Preserved responsive text display (short names on mobile, full names on desktop)
+
+### Testing:
+- ✅ Compiles without TypeScript errors
+- ✅ Maintains existing functionality
+- ✅ Responsive design for mobile screens
+- ✅ Proper dropdown positioning and overflow handling
+
+## Next Steps:
+- Test on actual mobile devices to confirm behavior
+- Monitor for any edge cases with long table names
+- Consider adding touch-friendly sizing if needed

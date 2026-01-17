@@ -63,6 +63,7 @@ const CafeOrderSystem = () => {
   // Table filter state for order queue
   const [selectedTableFilter, setSelectedTableFilter] = useState<string | null>(null);
   const [tables, setTables] = useState<Table[]>([]);
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   // New UI state for compact menu display
   const [searchTerm, setSearchTerm] = useState('');
@@ -1303,23 +1304,88 @@ const CafeOrderSystem = () => {
 
       {/* Order Queue */}
       <div className="bg-white rounded-lg shadow-lg p-4" data-order-queue>
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0 mb-4">
-          <h2 className="font-semibold text-gray-800 text-lg flex items-center gap-2">
+        <div className="flex flex-col gap-3 mb-4">
+          <h2 className="font-semibold text-gray-900 text-lg flex items-center gap-2">
             <Clock className="w-6 h-6 text-red-600" />
             Order Queue ({orders.length})
           </h2>
-          <select
-            value={selectedTableFilter || ''}
-            onChange={(e) => setSelectedTableFilter(e.target.value || null)}
-            className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:ring-2 focus:ring-red-500 focus:border-transparent w-full sm:w-auto min-w-[120px]"
-          >
-            <option value="">All Tables</option>
-            {Array.from(new Set(orders.filter(order => order.status !== 'served' && order.table_code).map(order => order.table_code))).map(tableCode => (
-              <option key={tableCode} value={tableCode}>
-                Table {tableCode}
-              </option>
-            ))}
-          </select>
+          <div className="relative w-full">
+            <div className="relative">
+              {/* Custom dropdown button */}
+              <button
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="px-2 py-2 sm:px-4 sm:py-3 border border-gray-400 rounded-lg text-xs sm:text-sm bg-white text-black focus:ring-2 focus:ring-red-500 focus:border-transparent w-full text-left flex items-center justify-between min-h-[36px] sm:min-h-[48px] shadow-sm hover:border-gray-500 transition-colors"
+              >
+                <span className="truncate">
+                  {selectedTableFilter ? (
+                    (() => {
+                      const tableDetails = tables.find(table => table.table_code === selectedTableFilter);
+                      return (
+                        <>
+                          <span className="sm:hidden">T{selectedTableFilter}</span>
+                          <span className="hidden sm:inline">
+                            {tableDetails ? `Table ${selectedTableFilter} - ${tableDetails.table_name}` : `Table ${selectedTableFilter}`}
+                          </span>
+                        </>
+                      );
+                    })()
+                  ) : (
+                    'All Tables'
+                  )}
+                </span>
+                <svg
+                  className={`w-3 h-3 sm:w-5 sm:h-5 text-gray-600 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Custom dropdown options */}
+              {isDropdownOpen && (
+                <div className="absolute top-full left-0 right-0 z-50 bg-white border border-gray-300 rounded-b-lg shadow-lg max-h-48 overflow-y-auto">
+                  <button
+                    onClick={() => {
+                      setSelectedTableFilter(null);
+                      setIsDropdownOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs sm:text-sm text-black hover:bg-gray-100 transition-colors border-b border-gray-100"
+                  >
+                    All Tables
+                  </button>
+                  {Array.from(new Set(orders.filter(order => order.status !== 'served' && order.table_code).map(order => order.table_code))).map(tableCode => {
+                    const tableDetails = tables.find(table => table.table_code === tableCode);
+                    return (
+                      <button
+                        key={tableCode}
+                        onClick={() => {
+                          setSelectedTableFilter(tableCode || null);
+                          setIsDropdownOpen(false);
+                        }}
+                        className="w-full px-3 py-2 text-left text-xs sm:text-sm text-black hover:bg-gray-100 transition-colors"
+                      >
+                        <span className="sm:hidden">T{tableCode}</span>
+                        <span className="hidden sm:inline">
+                          {tableDetails ? `Table ${tableCode} - ${tableDetails.table_name}` : `Table ${tableCode}`}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Click outside to close */}
+            {isDropdownOpen && (
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setIsDropdownOpen(false)}
+              />
+            )}
+          </div>
         </div>
         
         {orders.length === 0 ? (
@@ -1382,7 +1448,7 @@ const CafeOrderSystem = () => {
                   
                   <div className="mb-3 sm:mb-4">
                     {order.items.map(item => (
-                      <div key={item.id} className="flex justify-between items-center text-xs sm:text-sm text-red-800 py-1 sm:py-2 border-b border-red-100 last:border-b-0">
+                      <div key={item.id} className="flex justify-between items-center text-xs sm:text-sm text-gray-900 py-1 sm:py-2 border-b border-red-100 last:border-b-0">
                         <span className="font-medium">{item.quantity}x {item.name}</span>
                         <button
                           onClick={(e) => {
@@ -1528,7 +1594,7 @@ const CafeOrderSystem = () => {
                               <span className="text-sm text-gray-700">{new Date(day.date).toLocaleDateString()}</span>
                               <span className="font-medium text-gray-900">₹{day.revenue}</span>
                             </div>
-                          ))}
+                        ))}
                         </div>
                       </div>
                     </div>
