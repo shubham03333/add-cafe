@@ -1531,8 +1531,11 @@ const CafeOrderSystem = () => {
       return;
     }
 
-    const printUrl =
-      `my.bluetoothprint.scheme://http://${domain}/api/print/order/${viewingOrder.id}`;
+      const printUrl =
+      `my.bluetoothprint.scheme://https://${domain}/api/print/order/${viewingOrder.id}`;
+
+    // const printUrl =
+    //   `my.bluetoothprint.scheme://http://${domain}/api/print/order/${viewingOrder.id}`;
 
     // Use a temporary anchor element to open custom scheme
     const link = document.createElement('a');
