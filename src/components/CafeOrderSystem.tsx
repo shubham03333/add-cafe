@@ -79,6 +79,37 @@ const CafeOrderSystem = () => {
   const [selectedTable, setSelectedTable] = useState<any>(null);
   const [tableOrders, setTableOrders] = useState<{ [tableId: string]: OrderItem[] }>({});
 
+  // Swipe gesture state
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  // Minimum swipe distance (in px) to trigger the gesture
+  const minSwipeDistance = 50;
+
+  // Handle touch start
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null); // Reset touch end
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  // Handle touch move
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  // Handle touch end
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+
+    // Only trigger on left swipe (right to left)
+    if (isLeftSwipe) {
+      setPendingSidebarOpen(true);
+    }
+  };
+
   // Handle table selection
   const handleTableSelect = (table: Table) => {
     console.log('🔍 handleTableSelect called with table:', table);
@@ -875,7 +906,12 @@ const CafeOrderSystem = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-0.5 sm:p-1 md:p-2 lg:p-4 xl:p-6 w-full max-w-full mx-auto transition-all duration-300 overflow-x-hidden">
+    <div
+      className="min-h-screen bg-gray-100 p-0.5 sm:p-1 md:p-2 lg:p-4 xl:p-6 w-full max-w-full mx-auto transition-all duration-300 overflow-x-hidden"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
       {/* Header */}
       <div className="bg-gradient-to-r from-red-600 to-red-800 rounded-lg shadow-lg p-2 sm:p-3 md:p-4 mb-2 sm:mb-3 md:mb-4 transition-all duration-300">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-3 md:gap-4">
@@ -1304,143 +1340,7 @@ const CafeOrderSystem = () => {
         )}
       </div>
 
-      {/* Order Queue */}
-      <div className="bg-white rounded-lg shadow-lg p-2 sm:p-4" data-order-queue>
-        <h2 className="font-semibold text-gray-900 text-lg flex items-center gap-2 mb-4">
-          <Clock className="w-6 h-6 text-red-600" />
-          Order Queue ({orders.length})
-        </h2>
-        
-        {orders.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
-            <ChefHat className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <div className="text-lg">No orders in queue</div>
-            <div className="text-sm mt-2">Start building orders from the menu!</div>
-          </div>
-        ) : (
-          <div ref={ordersContainerRef} className="mt-2" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-            <div className="space-y-3 pr-1">
-              {orders
-                .filter(order => {
-                  if (!selectedTableFilter) return true; // All tables
-                  if (selectedTableFilter === 'takeaway') return order.order_type === 'TAKEAWAY';
-                  return order.table_code === selectedTableFilter;
-                })
-                .map(order => (
-                <div
-                  key={order.id}
-                  className="p-3 sm:p-4 md:p-5 rounded-lg border-l-4 border-red-500 bg-gradient-to-r from-red-50 to-white shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer"
-                  onClick={() => handleOrderClick(order)}
-                >
-                  <div className="flex flex-row justify-between items-center gap-2 mb-2">
-                    <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-                      <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-red-700 flex-shrink-0" />
-                      <span className="font-bold text-sm sm:text-base md:text-lg text-red-900">#{order.order_number.toString().padStart(3, '0')}</span>
-                      {order.order_type === 'DINE_IN' && order.table_code && (
-                        <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-blue-200 text-blue-900 rounded-full text-xs font-semibold flex-shrink-0">
-                          Table {order.table_code}
-                        </span>
-                      )}
-                      {order.order_type === 'TAKEAWAY' && (
-                        <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-green-200 text-green-900 rounded-full text-xs font-semibold flex-shrink-0">
-                          Takeaway
-                        </span>
-                      )}
-                      {order.order_type === 'DELIVERY' && (
-                        <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-purple-200 text-purple-900 rounded-full text-xs font-semibold flex-shrink-0">
-                          Delivery
-                        </span>
-                      )}
-                      <span className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-semibold flex-shrink-0 ${
-                        order.status === 'preparing'
-                          ? 'bg-yellow-200 text-yellow-900'
-                          : order.status === 'ready'
-                          ? 'bg-green-200 text-green-900'
-                          : order.status === 'served'
-                          ? 'bg-red-200 text-red-900'
-                          : 'bg-orange-200 text-orange-900'
-                      }`}>
-                        {order.status}
-                      </span>
-                      {/* Payment Status Indicator - Compact */}
-                      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-semibold flex-shrink-0 ${
-                        order.payment_status === 'paid'
-                          ? 'bg-green-100 text-green-800 border border-green-300'
-                          : order.payment_status === 'failed'
-                          ? 'bg-red-100 text-red-800 border border-red-300'
-                          : 'bg-blue-100 text-blue-800 border border-blue-300'
-                      }`}>
-                        <span className="text-xs">
-                          {order.payment_status === 'paid' ? '✓' : order.payment_status === 'failed' ? '✗' : '~'}
-                        </span>
-                        <span className="hidden sm:inline text-xs">
-                          {order.payment_status === 'paid' ? 'Paid' : order.payment_status === 'failed' ? 'Failed' : 'Pending'}
-                        </span>
-                      </span>
-                    </div>
-                    <div className="text-right flex-shrink-0">
-                      <div className="font-bold text-sm sm:text-base md:text-lg text-red-900 whitespace-nowrap">₹{order.total}</div>
-                    </div>
-                  </div>
 
-                  <div className="mb-2 sm:mb-3 md:mb-4">
-                    {order.items.map(item => (
-                      <div key={item.id} className="flex justify-between items-center text-xs sm:text-sm text-gray-900 py-1 sm:py-2 border-b border-red-100 last:border-b-0">
-                        <span className="font-medium">{item.quantity}x {item.name}</span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeItemFromOrder(order.id, item.id);
-                          }}
-                          className="p-1 sm:p-1.5 md:p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-full transition-colors"
-                          title="Remove item"
-                        >
-                          <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-
-                  <div className="flex flex-row gap-1">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        editOrder(order);
-                      }}
-                      className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-1 text-xs"
-                      title="Edit order"
-                    >
-                      <Edit2 className="w-3 h-3" />
-                      Edit
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openPaymentModeModal(order);
-                      }}
-                      className="flex-1 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors text-xs"
-                    >
-                      Serve
-                      
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openConfirmModal(order.id);
-                      }}
-                      className="px-1 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded-md font-medium transition-colors flex items-center justify-center gap-0.5 text-xs"
-                      title="Delete order"
-                    >
-                      <Trash2 className="w-2.5 h-2.5" />
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* Analytics Chart */}
       {showAnalytics && (
