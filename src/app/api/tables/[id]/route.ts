@@ -98,17 +98,30 @@ export async function DELETE(
       );
     }
 
-    // Soft delete by setting is_active to 0
+    // Check if table has active orders
+    const activeOrders = await executeQuery(
+      'SELECT id FROM orders WHERE table_id = ? AND status NOT IN ("served", "cancelled")',
+      [id]
+    ) as any[];
+
+    if (activeOrders.length > 0) {
+      return NextResponse.json(
+        { error: 'Cannot delete table with active orders. Please complete or cancel all orders for this table first.' },
+        { status: 400 }
+      );
+    }
+
+    // Hard delete the table
     await executeQuery(
-      'UPDATE tables_master SET is_active = 0 WHERE id = ?',
+      'DELETE FROM tables_master WHERE id = ?',
       [id]
     );
 
-    return NextResponse.json({ message: 'Table removed successfully' });
+    return NextResponse.json({ message: 'Table deleted successfully' });
   } catch (error) {
-    console.error('Error removing table:', error);
+    console.error('Error deleting table:', error);
     return NextResponse.json(
-      { error: 'Failed to remove table' },
+      { error: 'Failed to delete table' },
       { status: 500 }
     );
   }

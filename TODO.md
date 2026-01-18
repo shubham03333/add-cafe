@@ -1,36 +1,27 @@
-# Mobile Responsive Dropdown Fix - Order Queue Table Filter
+# Mobile Responsiveness Implementation for Dashboard
 
-## Task: Fix dropdown popup extending beyond mobile screen boundaries for table filter in order queue
+## Tasks to Complete:
+- [ ] Update main container responsive classes
+- [ ] Fix header section for mobile responsiveness
+- [ ] Adjust building order section for mobile
+- [ ] Make menu grid responsive (2 cols on mobile, 3+ on larger screens)
+- [ ] Fix order queue section for mobile
+- [ ] Update button sizes and spacing throughout
+- [ ] Ensure modals are mobile responsive
+- [ ] Test edit order modal responsiveness
+- [ ] Check sales report modal on mobile
+- [ ] Verify order detail popup responsiveness
+- [ ] Test confirmation modal on mobile
+- [ ] Check served orders modal responsiveness
 
-## Status: ✅ COMPLETED
+## Responsive Breakpoints to Use:
+- Mobile: < 640px (default)
+- Small: sm: (640px+)
+- Medium: md: (768px+)
+- Large: lg: (1024px+)
 
-### Changes Made:
-- **File**: `src/components/CafeOrderSystem.tsx`
-- **Issue**: Native select dropdown was going out of mobile screen boundaries
-- **Solution**: Replaced native select with custom dropdown implementation
-
-### Implementation Details:
-1. **Added State**: `isDropdownOpen` state to control dropdown visibility
-2. **Custom Button**: Replaced select with a button that shows current selection
-3. **Custom Options**: Created positioned dropdown options with proper styling
-4. **Mobile Responsive**: Dropdown stays within container bounds with proper z-index
-5. **Click Outside**: Added functionality to close dropdown when clicking outside
-6. **Accessibility**: Maintained keyboard navigation and screen reader compatibility
-
-### Technical Changes:
-- Added `isDropdownOpen` state variable
-- Replaced `<select>` element with custom `<button>` and `<div>` structure
-- Added click outside handler with `useEffect` cleanup
-- Maintained all existing functionality (filtering, table selection)
-- Preserved responsive text display (short names on mobile, full names on desktop)
-
-### Testing:
-- ✅ Compiles without TypeScript errors
-- ✅ Maintains existing functionality
-- ✅ Responsive design for mobile screens
-- ✅ Proper dropdown positioning and overflow handling
-
-## Next Steps:
-- Test on actual mobile devices to confirm behavior
-- Monitor for any edge cases with long table names
-- Consider adding touch-friendly sizing if needed
+## Button Size Standards:
+- Small buttons: px-2 py-1 text-sm
+- Medium buttons: px-3 py-2 text-sm
+- Large buttons: px-4 py-3 text-base
+- Extra large buttons: px-6 py-4 text-lg

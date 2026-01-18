@@ -2,13 +2,12 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Clock, ChefHat, Edit2, Trash2, X, Save, BarChart3, History, Wifi, WifiOff, ArrowLeft } from 'lucide-react';
+import { Clock, ChefHat, Edit2, Trash2, X, Save, BarChart3, History, Wifi, WifiOff, ArrowLeft, Menu, Users, Package } from 'lucide-react';
 import { Order, MenuItem, OrderItem, CreateOrderRequest, UpdateOrderRequest, Table, LocalOrder, SyncQueueItem } from '@/types';
 import { useOfflineStatus } from '@/hooks/useOfflineStatus';
 import { indexedDBManager } from '@/lib/indexeddb';
 import { SyncManager } from '@/lib/syncManager';
 import GoogleReviewQR from './GoogleReviewQR';
-import TableSelection from './TableSelection';
 
 
 const CafeOrderSystem = () => {
@@ -56,9 +55,8 @@ const CafeOrderSystem = () => {
   const [showAnalytics, setShowAnalytics] = useState(false);
 
   // Order flow state management
-  const [currentStep, setCurrentStep] = useState<'table_selection' | 'menu'>('table_selection');
-  const [selectedOrderType, setSelectedOrderType] = useState<'DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | null>('DINE_IN');
-  const [selectedTable, setSelectedTable] = useState<Table | null>(null);
+  const [currentStep, setCurrentStep] = useState<'menu'>('menu');
+  const [selectedOrderType, setSelectedOrderType] = useState<'DINE_IN' | 'TAKEAWAY' | 'DELIVERY' | null>('TAKEAWAY');
 
   // Table filter state for order queue
   const [selectedTableFilter, setSelectedTableFilter] = useState<string | null>(null);
@@ -74,10 +72,16 @@ const CafeOrderSystem = () => {
   // Edit order modal search state
   const [editOrderSearchTerm, setEditOrderSearchTerm] = useState('');
 
+  // Sidebar state management
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedTable, setSelectedTable] = useState<any>(null);
+  const [tableOrders, setTableOrders] = useState<{ [tableId: string]: OrderItem[] }>({});
+
   // Handle table selection
   const handleTableSelect = (table: Table) => {
     console.log('🔍 handleTableSelect called with table:', table);
     setSelectedTable(table);
+    setSelectedOrderType('DINE_IN');
     console.log('🔍 selectedTable set to:', table);
     setCurrentStep('menu');
   };
@@ -264,7 +268,7 @@ const CafeOrderSystem = () => {
         status: 'pending',
         payment_status: 'pending',
         order_time: new Date().toISOString(),
-        order_type: selectedOrderType || 'DINE_IN',
+        order_type: selectedTable ? 'DINE_IN' : selectedOrderType || 'TAKEAWAY',
         table_id: selectedTable?.table_code,
         table_code: selectedTable?.table_code,
         sync_status: isOffline ? 'pending' : 'syncing',
@@ -296,7 +300,7 @@ const CafeOrderSystem = () => {
         const orderData: CreateOrderRequest = {
           items: buildingOrder,
           total,
-          order_type: selectedOrderType || 'DINE_IN',
+          order_type: selectedTable ? 'DINE_IN' : 'TAKEAWAY',
           table_id: selectedTable?.table_code || null
         };
 
@@ -318,6 +322,13 @@ const CafeOrderSystem = () => {
 
         // Success: Clear building order and refresh
         setBuildingOrder([]);
+        // Store items in table orders state only for dine-in orders
+        if (selectedTable && selectedTable.id && selectedOrderType === 'DINE_IN') {
+          setTableOrders(prev => ({
+            ...prev,
+            [selectedTable.id]: [...(prev[selectedTable.id] || []), ...buildingOrder]
+          }));
+        }
         await fetchOrders();
       }
 
@@ -338,8 +349,8 @@ const CafeOrderSystem = () => {
           payment_status: 'pending',
           order_time: new Date().toISOString(),
           order_type: selectedOrderType || 'DINE_IN',
-          table_id: selectedTable?.id.toString(),
-          table_code: selectedTable?.table_code,
+          table_id: selectedTable?.table_code || null,
+          table_code: selectedTable?.table_code || null,
           sync_status: 'pending',
           sync_attempts: 0,
           created_at: new Date().toISOString(),
@@ -763,12 +774,7 @@ const CafeOrderSystem = () => {
     }
   };
 
-  // Conditional rendering based on current step
-  if (currentStep === 'table_selection') {
-    return <TableSelection onTableSelect={handleTableSelect} onTakeawaySelect={handleTakeawaySelect} />;
-  }
-
-  // Menu step (currentStep === 'menu')
+  // Menu step
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 p-2 sm:p-4 max-w-md mx-auto">
@@ -865,46 +871,36 @@ const CafeOrderSystem = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-2 sm:p-4 max-w-md mx-auto transition-all duration-300">
+    <div className="min-h-screen bg-gray-100 p-2 sm:p-4 md:p-6 max-w-sm sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto transition-all duration-300">
       {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-red-800 rounded-lg shadow-lg p-3 sm:p-4 mb-4 transition-all duration-300">
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-4">
-          <div className="flex items-center gap-3">
-            {currentStep === 'menu' && (
-              <button
-                onClick={() => setCurrentStep('table_selection')}
-                className="p-2 text-white hover:bg-white/20 rounded-full transition-colors"
-                title="Back to Table Selection"
-              >
-                <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6" />
-              </button>
-            )}
-            <img src="/logo.png" alt="Logo" className="w-16 h-16 sm:w-20 sm:h-20" />
+      <div className="bg-gradient-to-r from-red-600 to-red-800 rounded-lg shadow-lg p-2 sm:p-3 md:p-4 mb-3 sm:mb-4 transition-all duration-300">
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-3 md:gap-4">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <img src="/logo.png" alt="Logo" className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20" />
           </div>
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap justify-center">
-            {/* Offline Status Indicator */}
-            <div className="relative">
-              <button
-                className={`p-1.5 sm:p-2 rounded-lg shadow-md transition-colors ${
-                  isOffline 
-                    ? 'bg-red-500 text-white hover:bg-red-600' 
-                    : 'bg-green-500 text-white hover:bg-green-600'
-                }`}
-                title={isOffline ? 'Offline Mode' : 'Online Mode'}
-              >
-                {isOffline ? (
-                  <WifiOff className="w-4 h-4 sm:w-5 sm:h-5" />
-                ) : (
-                  <Wifi className="w-4 h-4 sm:w-5 sm:h-5" />
-                )}
-              </button>
-              {isOffline && (
-                <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-white"></div>
-              )}
-            </div>
-
-            <a 
-              href="/chef" 
+          <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-wrap justify-center">
+            {/* Sidebar Toggle */}
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors shadow-md"
+              title="Table Management"
+            >
+              <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+            {/* Takeaway Button */}
+            <button
+              onClick={() => {
+                setSelectedOrderType('TAKEAWAY');
+                setSelectedTable(null);
+                setBuildingOrder([]);
+              }}
+              className="p-1.5 sm:p-2 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors shadow-md"
+              title="Takeaway Order"
+            >
+              <Package className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+            <a
+              href="/chef"
               className="p-1.5 sm:p-2 bg-white text-red-600 rounded-lg text-xs sm:text-sm hover:bg-gray-100 transition-colors shadow-md flex items-center gap-1"
               title="Chef Dashboard"
             >
@@ -1008,8 +1004,8 @@ const CafeOrderSystem = () => {
 
       {/* Edit Order Modal */}
       {editingOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50 transition-opacity duration-300">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full max-h-[85vh] overflow-y-auto shadow-2xl border border-gray-200 transform transition-all duration-300 scale-100">
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50 transition-opacity duration-300">
+          <div className="bg-white rounded-xl p-4 sm:p-6 max-w-sm sm:max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 transform transition-all duration-300 scale-100">
 
             {/* Header */}
             <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-200">
@@ -1162,37 +1158,41 @@ const CafeOrderSystem = () => {
 
       {/* Current Order */}
       {buildingOrder.length > 0 && (
-        <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
-          <h2 className="font-semibold text-gray-800 text-lg mb-4 flex items-center gap-2">
+        <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4 mb-3 sm:mb-4">
+          <h2 className="font-semibold text-gray-800 text-base sm:text-lg mb-3 sm:mb-4 flex items-center gap-2">
             <div className="w-2 h-2 bg-green-500 rounded-full"></div>
             Current Order
-            {selectedTable && (
-              <span className="text-sm text-blue-800 font-medium ml-2">
-                - Table: {selectedTable.table_code} - {selectedTable.table_name}
+            {selectedTable ? (
+              <span className="text-xs sm:text-sm text-blue-800 font-medium ml-2">
+                - {selectedTable.table_name} ({selectedTable.capacity} seats)
+              </span>
+            ) : (
+              <span className="text-xs sm:text-sm text-green-600 font-medium ml-2">
+                - Takeaway Order
               </span>
             )}
           </h2>
 
-          <div className="space-y-3 mb-4">
+          <div className="space-y-2 sm:space-y-3 mb-3 sm:mb-4">
             {buildingOrder.map(item => (
-              <div key={item.id} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg border border-gray-200">
+              <div key={item.id} className="flex justify-between items-center p-2 sm:p-3 bg-gray-50 rounded-lg border border-gray-200">
                 <div className="flex-1 min-w-0">
-                  <span className="text-gray-900 font-medium text-sm block truncate">{item.name}</span>
+                  <span className="text-gray-900 font-medium text-xs sm:text-sm block truncate">{item.name}</span>
                   <span className="text-gray-600 text-xs">₹{item.price} each</span>
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2 bg-white rounded-full p-1 shadow-sm">
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="flex items-center gap-1 sm:gap-2 bg-white rounded-full p-1 shadow-sm">
                     <button
                       onClick={() => updateBuildingOrderItemQuantity(item.id, item.quantity - 1)}
-                      className="w-8 h-8 bg-gray-100 text-gray-700 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors duration-200 font-semibold text-lg"
+                      className="w-6 h-6 sm:w-8 sm:h-8 bg-gray-100 text-gray-700 rounded-full flex items-center justify-center hover:bg-gray-200 transition-colors duration-200 font-semibold text-sm sm:text-lg"
                       title="Decrease quantity"
                     >
                       -
                     </button>
-                    <span className="w-8 text-center font-bold text-gray-900 text-sm">{item.quantity}</span>
+                    <span className="w-6 sm:w-8 text-center font-bold text-gray-900 text-xs sm:text-sm">{item.quantity}</span>
                     <button
                       onClick={() => updateBuildingOrderItemQuantity(item.id, item.quantity + 1)}
-                      className="w-8 h-8 bg-red-100 text-red-700 rounded-full flex items-center justify-center hover:bg-red-200 transition-colors duration-200 font-semibold text-lg"
+                      className="w-6 h-6 sm:w-8 sm:h-8 bg-red-100 text-red-700 rounded-full flex items-center justify-center hover:bg-red-200 transition-colors duration-200 font-semibold text-sm sm:text-lg"
                       title="Increase quantity"
                     >
                       +
@@ -1200,27 +1200,27 @@ const CafeOrderSystem = () => {
                   </div>
                   <button
                     onClick={() => removeItemFromBuildingOrder(item.id)}
-                    className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors duration-200"
+                    className="p-1.5 sm:p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors duration-200"
                     title="Remove item"
                   >
-                    <Trash2 className="w-5 h-5" />
+                    <Trash2 className="w-4 h-4 sm:w-5 sm:h-5" />
                   </button>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="border-t border-gray-200 pt-4">
-            <div className="flex justify-between items-center mb-4">
+          <div className="border-t border-gray-200 pt-3 sm:pt-4">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
               <div>
-                <div className="text-sm text-gray-600">Order Total</div>
-                <div className="text-xl font-bold text-gray-900">
+                <div className="text-xs sm:text-sm text-gray-600">Order Total</div>
+                <div className="text-lg sm:text-xl font-bold text-gray-900">
                   ₹{buildingOrder.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
                 </div>
               </div>
               <button
                 onClick={placeOrder}
-                className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-800 text-white rounded-lg font-medium hover:from-green-700 hover:to-green-900 transition-all duration-200 shadow-md hover:shadow-lg"
+                className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2 bg-gradient-to-r from-green-600 to-green-800 text-white rounded-lg font-medium hover:from-green-700 hover:to-green-900 transition-all duration-200 shadow-md hover:shadow-lg text-sm sm:text-base"
               >
                 Place Order
               </button>
@@ -1230,11 +1230,11 @@ const CafeOrderSystem = () => {
       )}
 
       {/* Menu Grid */}
-      <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
-        <h2 className="font-semibold text-gray-800 text-lg mb-4">Menu Items</h2>
+      <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4 mb-3 sm:mb-4">
+        <h2 className="font-semibold text-gray-800 text-base sm:text-lg mb-3 sm:mb-4">Menu Items</h2>
 
         {/* Filtered Menu Items */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5 sm:gap-2">
           {menuItems
             .filter(item => {
               // Search filter
@@ -1252,7 +1252,12 @@ const CafeOrderSystem = () => {
               <div key={item.id} className="relative">
                 <button
                   onClick={() => addToOrder(item, 1)}
-                  className="w-full p-1.5 sm:p-2 rounded-lg text-center font-medium min-h-[60px] sm:min-h-[70px] flex flex-col justify-center transition-all duration-300 shadow-md hover:shadow-lg bg-gradient-to-br from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 cursor-pointer hover:scale-105"
+                  disabled={!selectedTable && selectedOrderType !== 'TAKEAWAY'}
+                  className={`w-full p-1.5 sm:p-2 rounded-lg text-center font-medium min-h-[60px] sm:min-h-[70px] flex flex-col justify-center transition-all duration-300 shadow-md hover:shadow-lg ${
+                    selectedTable || selectedOrderType === 'TAKEAWAY'
+                      ? 'bg-gradient-to-br from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 cursor-pointer hover:scale-105'
+                      : 'bg-gray-400 cursor-not-allowed opacity-50'
+                  }`}
                 >
                   <div className="font-semibold text-[10px] sm:text-[11px] leading-tight px-0.5 overflow-hidden" style={{
                     display: '-webkit-box',
@@ -1304,12 +1309,12 @@ const CafeOrderSystem = () => {
 
       {/* Order Queue */}
       <div className="bg-white rounded-lg shadow-lg p-4" data-order-queue>
-        <div className="flex flex-col gap-3 mb-4">
-          <h2 className="font-semibold text-gray-900 text-lg flex items-center gap-2">
+        <div className="flex flex-row items-center gap-3 mb-4">
+          <h2 className="font-semibold text-gray-900 text-lg flex items-center gap-2 flex-shrink-0">
             <Clock className="w-6 h-6 text-red-600" />
             Order Queue ({orders.length})
           </h2>
-          <div className="relative w-full">
+          <div className="relative flex-1">
             <div className="relative">
               {/* Custom dropdown button */}
               <button
@@ -1356,6 +1361,15 @@ const CafeOrderSystem = () => {
                   >
                     All Tables
                   </button>
+                  <button
+                    onClick={() => {
+                      setSelectedTableFilter('takeaway');
+                      setIsDropdownOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-xs sm:text-sm text-black hover:bg-gray-100 transition-colors border-b border-gray-100"
+                  >
+                    Takeaway Orders
+                  </button>
                   {Array.from(new Set(orders.filter(order => order.status !== 'served' && order.table_code).map(order => order.table_code))).map(tableCode => {
                     const tableDetails = tables.find(table => table.table_code === tableCode);
                     return (
@@ -1398,20 +1412,34 @@ const CafeOrderSystem = () => {
           <div ref={ordersContainerRef} className="mt-2" style={{ maxHeight: '400px', overflowY: 'auto' }}>
             <div className="space-y-3 pr-1">
               {orders
-                .filter(order => !selectedTableFilter || order.table_code === selectedTableFilter)
+                .filter(order => {
+                  if (!selectedTableFilter) return true; // All tables
+                  if (selectedTableFilter === 'takeaway') return order.order_type === 'TAKEAWAY';
+                  return order.table_code === selectedTableFilter;
+                })
                 .map(order => (
-                <div 
-                  key={order.id} 
-                  className="p-4 sm:p-5 rounded-lg border-l-4 border-red-500 bg-gradient-to-r from-red-50 to-white shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer"
+                <div
+                  key={order.id}
+                  className="p-3 sm:p-4 md:p-5 rounded-lg border-l-4 border-red-500 bg-gradient-to-r from-red-50 to-white shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer"
                   onClick={() => handleOrderClick(order)}
                 >
-                  <div className="flex justify-between items-start mb-3">
+                  <div className="flex flex-col sm:flex-row justify-between items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
                     <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
                       <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-red-700 flex-shrink-0" />
-                      <span className="font-bold text-sm sm:text-lg text-red-900">#{order.order_number.toString().padStart(3, '0')}</span>
+                      <span className="font-bold text-sm sm:text-base md:text-lg text-red-900">#{order.order_number.toString().padStart(3, '0')}</span>
                       {order.order_type === 'DINE_IN' && order.table_code && (
                         <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-blue-200 text-blue-900 rounded-full text-xs font-semibold flex-shrink-0">
                           Table {order.table_code}
+                        </span>
+                      )}
+                      {order.order_type === 'TAKEAWAY' && (
+                        <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-green-200 text-green-900 rounded-full text-xs font-semibold flex-shrink-0">
+                          Takeaway
+                        </span>
+                      )}
+                      {order.order_type === 'DELIVERY' && (
+                        <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-purple-200 text-purple-900 rounded-full text-xs font-semibold flex-shrink-0">
+                          Delivery
                         </span>
                       )}
                       <span className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-semibold flex-shrink-0 ${
@@ -1441,12 +1469,12 @@ const CafeOrderSystem = () => {
                         </span>
                       </span>
                     </div>
-                    <div className="text-right flex-shrink-0 ml-2">
-                      <div className="font-bold text-sm sm:text-lg text-red-900 whitespace-nowrap">₹{order.total}</div>
+                    <div className="text-right flex-shrink-0">
+                      <div className="font-bold text-sm sm:text-base md:text-lg text-red-900 whitespace-nowrap">₹{order.total}</div>
                     </div>
                   </div>
-                  
-                  <div className="mb-3 sm:mb-4">
+
+                  <div className="mb-2 sm:mb-3 md:mb-4">
                     {order.items.map(item => (
                       <div key={item.id} className="flex justify-between items-center text-xs sm:text-sm text-gray-900 py-1 sm:py-2 border-b border-red-100 last:border-b-0">
                         <span className="font-medium">{item.quantity}x {item.name}</span>
@@ -1455,7 +1483,7 @@ const CafeOrderSystem = () => {
                             e.stopPropagation();
                             removeItemFromOrder(order.id, item.id);
                           }}
-                          className="p-1.5 sm:p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-full transition-colors"
+                          className="p-1 sm:p-1.5 md:p-2 text-red-600 hover:text-red-800 hover:bg-red-100 rounded-full transition-colors"
                           title="Remove item"
                         >
                           <Trash2 className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -1463,17 +1491,17 @@ const CafeOrderSystem = () => {
                       </div>
                     ))}
                   </div>
-                  
-                  <div className="flex gap-2">
+
+                  <div className="flex flex-row gap-1">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         editOrder(order);
                       }}
-                      className="px-2 py-1.5 sm:px-3 sm:py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center gap-1 text-xs sm:text-sm"
+                      className="px-2 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-1 text-xs"
                       title="Edit order"
                     >
-                      <Edit2 className="w-3 h-3 sm:w-3 sm:h-3" />
+                      <Edit2 className="w-3 h-3" />
                       Edit
                     </button>
                     <button
@@ -1481,19 +1509,20 @@ const CafeOrderSystem = () => {
                         e.stopPropagation();
                         openPaymentModeModal(order);
                       }}
-                      className="flex-1 py-1.5 sm:py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors text-xs sm:text-sm"
+                      className="flex-1 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors text-xs"
                     >
-                      Served
+                      Serve
+                      
                     </button>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         openConfirmModal(order.id);
                       }}
-                      className="px-1.5 py-1 sm:px-1.5 sm:py-0.5 bg-red-600 hover:bg-red-700 text-white rounded-md font-medium transition-colors flex items-center gap-0.5 text-xs"
+                      className="px-1 py-0.5 bg-red-600 hover:bg-red-700 text-white rounded-md font-medium transition-colors flex items-center justify-center gap-0.5 text-xs"
                       title="Delete order"
                     >
-                      <Trash2 className="w-2.5 h-2.5 sm:w-2.5 sm:h-2.5" />
+                      <Trash2 className="w-2.5 h-2.5" />
                       Delete
                     </button>
                   </div>
@@ -1642,6 +1671,9 @@ const CafeOrderSystem = () => {
                 <div className="text-xs text-gray-500 print:text-black">{new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</div>
                 {viewingOrder.order_type === 'DINE_IN' && viewingOrder.table_code && (
                   <div className="text-xs text-gray-500 print:text-black">Table: {viewingOrder.table_code}</div>
+                )}
+                {viewingOrder.order_type === 'TAKEAWAY' && (
+                  <div className="text-xs text-gray-500 print:text-black">Takeaway</div>
                 )}
               </div>
 
@@ -1996,6 +2028,97 @@ const CafeOrderSystem = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Animated Sidebar */}
+      {sidebarOpen && (
+        <>
+          {/* Dark overlay */}
+          <div
+            className="fixed inset-0 bg-black bg-opacity-50 z-40"
+            onClick={() => setSidebarOpen(false)}
+          />
+
+          {/* Sidebar */}
+          <div className={`fixed left-0 top-0 h-full w-80 bg-white shadow-lg z-50 transform transition-transform duration-300 ease-in-out ${
+            sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          }`}>
+            {/* Sidebar Header */}
+            <div className="bg-gradient-to-r from-red-600 to-red-700 p-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-white font-semibold text-lg">Tables & Orders</h2>
+                <button
+                  onClick={() => setSidebarOpen(false)}
+                  className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Takeaway Section */}
+            <div className="p-4 border-b border-gray-200">
+              <button
+                onClick={() => {
+                  setSelectedOrderType('TAKEAWAY');
+                  setSelectedTable(null);
+                  setBuildingOrder([]);
+                  setSidebarOpen(false);
+                }}
+                className="w-full bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white rounded-xl p-4 flex items-center gap-3 transition-all duration-200 shadow-md hover:shadow-lg"
+              >
+                <Package className="w-6 h-6" />
+                <span className="font-semibold">Takeaway Order</span>
+              </button>
+            </div>
+
+            {/* Table Grid */}
+            <div className="flex-1 overflow-y-auto p-4">
+              <div className="grid grid-cols-2 gap-3">
+                {tables
+                  .filter(table => table.is_active && !table.is_occupied)
+                  .map(table => {
+                    const isSelected = selectedTable?.table_code === table.table_code;
+
+                    return (
+                      <button
+                        key={table.id}
+                        onClick={() => {
+                          setSelectedTable(table);
+                          setSelectedOrderType('DINE_IN');
+                          setBuildingOrder([]);
+                          setSidebarOpen(false);
+                        }}
+                        className={`relative p-4 rounded-xl border-2 transition-all duration-200 ${
+                          isSelected
+                            ? 'bg-blue-100 border-blue-500 shadow-md'
+                            : 'bg-white border-gray-300 hover:border-blue-400 hover:scale-105 shadow-sm hover:shadow-md'
+                        }`}
+                      >
+                        <div className="text-center">
+                          <div className="flex items-center justify-center gap-1 mb-2">
+                            <Users className="w-4 h-4 text-gray-600" />
+                            <span className="text-sm font-medium text-gray-900">{table.capacity} seats</span>
+                          </div>
+                          <div className="font-semibold text-gray-900">{table.table_name}</div>
+                          <div className="text-xs text-gray-500 mt-1">Table {table.table_code}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+              </div>
+
+              {/* No available tables message */}
+              {tables.filter(table => table.is_active && !table.is_occupied).length === 0 && (
+                <div className="text-center py-8 text-gray-500">
+                  <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <div className="text-sm">No available tables</div>
+                  <div className="text-xs mt-1">All tables are currently occupied</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
       )}
     </div>
   );
