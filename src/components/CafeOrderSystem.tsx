@@ -1211,19 +1211,19 @@ const CafeOrderSystem = () => {
           </div>
 
           <div className="border-t border-gray-200 pt-3 sm:pt-4">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
-              <div>
-                <div className="text-xs sm:text-sm text-gray-600">Order Total</div>
-                <div className="text-lg sm:text-xl font-bold text-gray-900">
-                  ₹{buildingOrder.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
-                </div>
-              </div>
+            <div className="flex flex-row justify-between items-center gap-3 mb-3">
               <button
                 onClick={placeOrder}
                 className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2 bg-gradient-to-r from-green-600 to-green-800 text-white rounded-lg font-medium hover:from-green-700 hover:to-green-900 transition-all duration-200 shadow-md hover:shadow-lg text-sm sm:text-base"
               >
                 Place Order
               </button>
+              <div>
+                <div className="text-xs sm:text-sm text-gray-600">Order Total</div>
+                <div className="text-lg sm:text-xl font-bold text-gray-900">
+                  ₹{buildingOrder.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1423,7 +1423,7 @@ const CafeOrderSystem = () => {
                   className="p-3 sm:p-4 md:p-5 rounded-lg border-l-4 border-red-500 bg-gradient-to-r from-red-50 to-white shadow-md hover:shadow-lg transition-all duration-300 cursor-pointer"
                   onClick={() => handleOrderClick(order)}
                 >
-                  <div className="flex flex-col sm:flex-row justify-between items-start gap-2 sm:gap-3 mb-2 sm:mb-3">
+                  <div className="flex flex-row justify-between items-center gap-2 mb-2">
                     <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
                       <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-red-700 flex-shrink-0" />
                       <span className="font-bold text-sm sm:text-base md:text-lg text-red-900">#{order.order_number.toString().padStart(3, '0')}</span>
