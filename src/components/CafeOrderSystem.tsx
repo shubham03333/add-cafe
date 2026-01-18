@@ -440,9 +440,11 @@ const CafeOrderSystem = () => {
 
       if (!response.ok) throw new Error('Failed to save order');
 
+      // Update the bill view with the latest changes if it's currently open
+      setViewingOrder(editingOrder);
       setEditingOrder(null);
       await fetchOrders(); // Refresh orders
-      
+
     } catch (err) {
       setError('Failed to save order');
       console.error(err);
