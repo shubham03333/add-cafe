@@ -69,27 +69,39 @@ export async function GET(request: NextRequest) {
     // Sort by date again after adding manual overrides
     adjustedDailySales.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-    // Optimized query: Aggregate item sales directly in database using JSON functions
-    // This replaces the in-memory processing that was loading all orders into memory
-    const topItems = await executeQuery(`
-      SELECT
-        JSON_UNQUOTE(JSON_EXTRACT(item.value, '$.name')) as name,
-        SUM(CAST(JSON_UNQUOTE(JSON_EXTRACT(item.value, '$.quantity')) AS UNSIGNED)) as quantity
-      FROM orders o
-      CROSS JOIN JSON_TABLE(
-        o.items,
-        '$[*]' COLUMNS (
-          value JSON PATH '$'
-        )
-      ) as item
-      WHERE o.order_time BETWEEN ? AND ?
-        AND o.status = 'served'
-        AND JSON_VALID(o.items) = 1
-      GROUP BY JSON_UNQUOTE(JSON_EXTRACT(item.value, '$.name'))
-      HAVING name IS NOT NULL AND name != ''
-      ORDER BY quantity DESC
-      LIMIT 10
+    // Fetch orders data for processing top items in JS (TiDB doesn't support JSON_TABLE)
+    const ordersData = await executeQuery(`
+      SELECT items
+      FROM orders
+      WHERE order_time BETWEEN ? AND ?
+        AND status = 'served'
+        AND JSON_VALID(items) = 1
     `, [startDate, endDate]) as any[];
+
+    // Process items in JS to aggregate top items
+    const itemMap = new Map<string, number>();
+    ordersData.forEach(order => {
+      try {
+        const items = JSON.parse(order.items);
+        if (Array.isArray(items)) {
+          items.forEach((item: any) => {
+            const name = item.name?.trim();
+            const quantity = parseInt(item.quantity) || 0;
+            if (name && quantity > 0) {
+              itemMap.set(name, (itemMap.get(name) || 0) + quantity);
+            }
+          });
+        }
+      } catch (e) {
+        // Skip invalid JSON
+      }
+    });
+
+    // Convert to array and sort by quantity desc, limit 10
+    const topItems = Array.from(itemMap.entries())
+      .map(([name, quantity]) => ({ name, quantity }))
+      .sort((a, b) => b.quantity - a.quantity)
+      .slice(0, 10);
 
     const result = {
       total_revenue: salesSummary[0]?.total_revenue || 0,

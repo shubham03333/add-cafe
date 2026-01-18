@@ -875,66 +875,66 @@ const CafeOrderSystem = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-1 sm:p-2 md:p-4 lg:p-6 w-full max-w-full mx-auto transition-all duration-300 overflow-x-hidden">
+    <div className="min-h-screen bg-gray-100 p-0.5 sm:p-1 md:p-2 lg:p-4 xl:p-6 w-full max-w-full mx-auto transition-all duration-300 overflow-x-hidden">
       {/* Header */}
       <div className="bg-gradient-to-r from-red-600 to-red-800 rounded-lg shadow-lg p-2 sm:p-3 md:p-4 mb-2 sm:mb-3 md:mb-4 transition-all duration-300">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-3 md:gap-4">
           <div className="flex items-center gap-2 sm:gap-3">
             <img src="/logo.png" alt="Logo" className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20" />
           </div>
-          <div className="flex items-center gap-0.5 flex-wrap justify-center">
+          <div className="flex items-center gap-0.5 flex-wrap justify-center max-w-full overflow-x-auto px-1">
             {/* Sidebar Toggle */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-2 sm:p-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors shadow-md min-h-[44px] min-w-[44px] flex items-center justify-center"
+              className="p-1.5 sm:p-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors shadow-md min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center flex-shrink-0"
               title="Table Management"
             >
-              <Menu className="w-5 h-5 sm:w-5 sm:h-5" />
+              <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             {/* Takeaway Button */}
-            <button
+            {/* <button
               onClick={() => {
                 setSelectedOrderType('TAKEAWAY');
                 setSelectedTable(null);
                 setBuildingOrder([]);
               }}
-              className="p-2 sm:p-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors shadow-md min-h-[44px] min-w-[44px] flex items-center justify-center"
+              className="p-1.5 sm:p-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors shadow-md min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center flex-shrink-0"
               title="Takeaway Order"
             >
-              <Package className="w-5 h-5 sm:w-5 sm:h-5" />
-            </button>
+              <Package className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button> */}
             <a
               href="/chef"
-              className="p-2 sm:p-2.5 bg-white text-red-600 rounded-lg text-sm hover:bg-gray-100 transition-colors shadow-md flex items-center justify-center min-h-[44px] min-w-[44px]"
+              className="p-1.5 sm:p-2.5 bg-white text-red-600 rounded-lg text-xs sm:text-sm hover:bg-gray-100 transition-colors shadow-md flex items-center justify-center min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex-shrink-0"
               title="Chef Dashboard"
             >
-              <span>👨‍🍳</span>
+              <span className="text-sm sm:text-base">👨‍🍳</span>
             </a>
             <div
-              className="bg-white/20 backdrop-blur-sm rounded-lg p-2 sm:p-2.5 min-w-[56px] sm:min-w-[64px] cursor-pointer hover:bg-white/30 transition-colors min-h-[44px] flex flex-col items-center justify-center"
+              className="bg-white/20 backdrop-blur-sm rounded-lg p-1.5 sm:p-2.5 min-w-[50px] sm:min-w-[64px] cursor-pointer hover:bg-white/30 transition-colors min-h-[40px] sm:min-h-[44px] flex flex-col items-center justify-center flex-shrink-0"
               onClick={() => setPendingSidebarOpen(true)}
               title="Click to view pending orders"
             >
-              <div className="text-xs text-white/90">Pending</div>
-              <div className="text-lg sm:text-lg font-bold text-white">{pendingOrdersCount}</div>
+              <div className="text-[10px] sm:text-xs text-white/90">Pending</div>
+              <div className="text-sm sm:text-lg font-bold text-white">{pendingOrdersCount}</div>
             </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 sm:p-2.5 min-w-[56px] sm:min-w-[64px] cursor-pointer min-h-[44px] flex flex-col items-center justify-center" onClick={openPaymentRevenueModal}>
-              <div className="text-xs text-white/90">Sales</div>
-              <div className="text-lg sm:text-lg font-bold text-white">₹{dailySales}</div>
+            <div className="bg-white/20 backdrop-blur-sm rounded-lg p-1.5 sm:p-2.5 min-w-[50px] sm:min-w-[64px] cursor-pointer min-h-[40px] sm:min-h-[44px] flex flex-col items-center justify-center flex-shrink-0" onClick={openPaymentRevenueModal}>
+              <div className="text-[10px] sm:text-xs text-white/90">Sales</div>
+              <div className="text-sm sm:text-lg font-bold text-white">₹{dailySales}</div>
             </div>
             <button
               onClick={openServedOrdersModal}
-              className="p-2 sm:p-2.5 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md min-h-[44px] min-w-[44px] flex items-center justify-center"
+              className="p-1.5 sm:p-2.5 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center flex-shrink-0"
               title="Served Orders History"
             >
-              <History className="w-5 h-5 sm:w-5 sm:h-5" />
+              <History className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             <button
               onClick={openReportModal}
-              className="p-2 sm:p-2.5 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md min-h-[44px] min-w-[44px] flex items-center justify-center"
+              className="p-1.5 sm:p-2.5 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center flex-shrink-0"
               title="Sales Report"
             >
-              <BarChart3 className="w-5 h-5 sm:w-5 sm:h-5" />
+              <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         </div>
@@ -943,7 +943,7 @@ const CafeOrderSystem = () => {
 
 
       {/* Search and Filter Controls */}
-      <div className="bg-white rounded-lg shadow-lg p-4 mb-4">
+      <div className="bg-white rounded-lg shadow-lg p-2 sm:p-4 mb-2 sm:mb-4">
         {/* <h2 className="font-semibold text-gray-800 text-lg mb-4">Search & Filter</h2> */}
         <div className="space-y-3">
           {/* Search Bar and Favorites */}
@@ -1305,7 +1305,7 @@ const CafeOrderSystem = () => {
       </div>
 
       {/* Order Queue */}
-      <div className="bg-white rounded-lg shadow-lg p-4" data-order-queue>
+      <div className="bg-white rounded-lg shadow-lg p-2 sm:p-4" data-order-queue>
         <div className="flex flex-row items-center gap-3 mb-4">
           <h2 className="font-semibold text-gray-900 text-lg flex items-center gap-2 flex-shrink-0">
             <Clock className="w-6 h-6 text-red-600" />
