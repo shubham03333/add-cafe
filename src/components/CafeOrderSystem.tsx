@@ -1004,7 +1004,7 @@ const CafeOrderSystem = () => {
 
       {/* Edit Order Modal */}
       {editingOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50 transition-opacity duration-300">
+        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-[100] transition-opacity duration-300">
           <div className="bg-white rounded-xl p-4 sm:p-6 max-w-sm sm:max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 transform transition-all duration-300 scale-100">
 
             {/* Header */}
@@ -1740,6 +1740,13 @@ const CafeOrderSystem = () => {
   🖨️ Print
 </button>
 
+                <button
+                  onClick={() => editOrder(viewingOrder)}
+                  className="px-3 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors text-sm"
+                  title="Edit Order"
+                >
+                  Edit
+                </button>
 
 {/* <button
   onClick={() => {
@@ -2076,44 +2083,66 @@ const CafeOrderSystem = () => {
             <div className="flex-1 overflow-y-auto p-4">
               <div className="grid grid-cols-2 gap-3">
                 {tables
-                  .filter(table => table.is_active && !table.is_occupied)
+                  .filter(table => table.is_active)
                   .map(table => {
                     const isSelected = selectedTable?.table_code === table.table_code;
+                    const hasPendingOrder = orders.some(order =>
+                      order.table_code === table.table_code && order.status !== 'served'
+                    );
 
                     return (
                       <button
                         key={table.id}
                         onClick={() => {
-                          setSelectedTable(table);
-                          setSelectedOrderType('DINE_IN');
-                          setBuildingOrder([]);
-                          setSidebarOpen(false);
+                          if (hasPendingOrder) {
+                            // Find and open the bill popup for this table's pending order
+                            const pendingOrder = orders.find(order =>
+                              order.table_code === table.table_code && order.status !== 'served'
+                            );
+                            if (pendingOrder) {
+                              handleOrderClick(pendingOrder);
+                              setSidebarOpen(false);
+                            }
+                          } else {
+                            setSelectedTable(table);
+                            setSelectedOrderType('DINE_IN');
+                            setBuildingOrder([]);
+                            setSidebarOpen(false);
+                          }
                         }}
                         className={`relative p-4 rounded-xl border-2 transition-all duration-200 ${
-                          isSelected
+                          hasPendingOrder
+                            ? 'bg-red-100 border-red-500 cursor-pointer hover:bg-red-200'
+                            : isSelected
                             ? 'bg-blue-100 border-blue-500 shadow-md'
                             : 'bg-white border-gray-300 hover:border-blue-400 hover:scale-105 shadow-sm hover:shadow-md'
                         }`}
                       >
                         <div className="text-center">
                           <div className="flex items-center justify-center gap-1 mb-2">
-                            <Users className="w-4 h-4 text-gray-600" />
-                            <span className="text-sm font-medium text-gray-900">{table.capacity} seats</span>
+                            <Users className={`w-4 h-4 ${hasPendingOrder ? 'text-red-600' : 'text-gray-600'}`} />
+                            <span className={`text-sm font-medium ${hasPendingOrder ? 'text-red-900' : 'text-gray-900'}`}>
+                              {table.capacity} seats
+                            </span>
                           </div>
-                          <div className="font-semibold text-gray-900">{table.table_name}</div>
-                          <div className="text-xs text-gray-500 mt-1">Table {table.table_code}</div>
+                          <div className={`font-semibold ${hasPendingOrder ? 'text-red-900' : 'text-gray-900'}`}>
+                            {table.table_name}
+                          </div>
+                          <div className={`text-xs mt-1 ${hasPendingOrder ? 'text-red-700 font-medium' : 'text-gray-500'}`}>
+                            {hasPendingOrder ? 'Occupied - Order Pending' : `Table ${table.table_code}`}
+                          </div>
                         </div>
                       </button>
                     );
                   })}
               </div>
 
-              {/* No available tables message */}
-              {tables.filter(table => table.is_active && !table.is_occupied).length === 0 && (
+              {/* No tables message */}
+              {tables.filter(table => table.is_active).length === 0 && (
                 <div className="text-center py-8 text-gray-500">
                   <Users className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <div className="text-sm">No available tables</div>
-                  <div className="text-xs mt-1">All tables are currently occupied</div>
+                  <div className="text-sm">No tables available</div>
+                  <div className="text-xs mt-1">Please check table configuration</div>
                 </div>
               )}
             </div>
