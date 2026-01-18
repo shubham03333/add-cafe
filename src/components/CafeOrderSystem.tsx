@@ -875,14 +875,14 @@ const CafeOrderSystem = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-1 sm:p-2 md:p-4 lg:p-6 w-full max-w-full sm:max-w-sm md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto transition-all duration-300">
+    <div className="min-h-screen bg-gray-100 p-1 sm:p-2 md:p-4 lg:p-6 w-full max-w-full mx-auto transition-all duration-300 overflow-x-hidden">
       {/* Header */}
       <div className="bg-gradient-to-r from-red-600 to-red-800 rounded-lg shadow-lg p-2 sm:p-3 md:p-4 mb-2 sm:mb-3 md:mb-4 transition-all duration-300">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-3 md:gap-4">
           <div className="flex items-center gap-2 sm:gap-3">
             <img src="/logo.png" alt="Logo" className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20" />
           </div>
-          <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-wrap justify-center">
+          <div className="flex items-center gap-0.5 flex-wrap justify-center">
             {/* Sidebar Toggle */}
             <button
               onClick={() => setSidebarOpen(true)}
@@ -1231,7 +1231,7 @@ const CafeOrderSystem = () => {
         <h2 className="font-semibold text-gray-800 text-base sm:text-lg mb-3 sm:mb-4">Menu Items</h2>
 
         {/* Filtered Menu Items */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1.5 sm:gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1 sm:gap-1.5 md:gap-2">
           {menuItems
             .filter(item => {
               // Search filter
@@ -2057,7 +2057,7 @@ const CafeOrderSystem = () => {
           />
 
           {/* Sidebar */}
-          <div className={`fixed left-0 top-0 h-full w-80 bg-white shadow-lg z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
+          <div className={`fixed left-0 top-0 h-full w-full sm:w-80 bg-white shadow-lg z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}>
             {/* Sidebar Header */}
