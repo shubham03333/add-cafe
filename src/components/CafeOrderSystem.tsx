@@ -8,6 +8,7 @@ import { useOfflineStatus } from '@/hooks/useOfflineStatus';
 import { indexedDBManager } from '@/lib/indexeddb';
 import { SyncManager } from '@/lib/syncManager';
 import GoogleReviewQR from './GoogleReviewQR';
+import PendingOrdersSidebar from './PendingOrdersSidebar';
 
 
 const CafeOrderSystem = () => {
@@ -74,6 +75,7 @@ const CafeOrderSystem = () => {
 
   // Sidebar state management
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [pendingSidebarOpen, setPendingSidebarOpen] = useState(false);
   const [selectedTable, setSelectedTable] = useState<any>(null);
   const [tableOrders, setTableOrders] = useState<{ [tableId: string]: OrderItem[] }>({});
 
@@ -873,21 +875,21 @@ const CafeOrderSystem = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 p-2 sm:p-4 md:p-6 max-w-sm sm:max-w-md md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto transition-all duration-300">
+    <div className="min-h-screen bg-gray-100 p-1 sm:p-2 md:p-4 lg:p-6 w-full max-w-full sm:max-w-sm md:max-w-2xl lg:max-w-4xl xl:max-w-6xl mx-auto transition-all duration-300">
       {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-red-800 rounded-lg shadow-lg p-2 sm:p-3 md:p-4 mb-3 sm:mb-4 transition-all duration-300">
+      <div className="bg-gradient-to-r from-red-600 to-red-800 rounded-lg shadow-lg p-2 sm:p-3 md:p-4 mb-2 sm:mb-3 md:mb-4 transition-all duration-300">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-3 md:gap-4">
           <div className="flex items-center gap-2 sm:gap-3">
-            <img src="/logo.png" alt="Logo" className="w-12 h-12 sm:w-16 sm:h-16 md:w-20 md:h-20" />
+            <img src="/logo.png" alt="Logo" className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20" />
           </div>
           <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-wrap justify-center">
             {/* Sidebar Toggle */}
             <button
               onClick={() => setSidebarOpen(true)}
-              className="p-1.5 sm:p-2 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors shadow-md"
+              className="p-2 sm:p-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors shadow-md min-h-[44px] min-w-[44px] flex items-center justify-center"
               title="Table Management"
             >
-              <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
+              <Menu className="w-5 h-5 sm:w-5 sm:h-5" />
             </button>
             {/* Takeaway Button */}
             <button
@@ -896,50 +898,43 @@ const CafeOrderSystem = () => {
                 setSelectedTable(null);
                 setBuildingOrder([]);
               }}
-              className="p-1.5 sm:p-2 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors shadow-md"
+              className="p-2 sm:p-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors shadow-md min-h-[44px] min-w-[44px] flex items-center justify-center"
               title="Takeaway Order"
             >
-              <Package className="w-4 h-4 sm:w-5 sm:h-5" />
+              <Package className="w-5 h-5 sm:w-5 sm:h-5" />
             </button>
             <a
               href="/chef"
-              className="p-1.5 sm:p-2 bg-white text-red-600 rounded-lg text-xs sm:text-sm hover:bg-gray-100 transition-colors shadow-md flex items-center gap-1"
+              className="p-2 sm:p-2.5 bg-white text-red-600 rounded-lg text-sm hover:bg-gray-100 transition-colors shadow-md flex items-center justify-center min-h-[44px] min-w-[44px]"
               title="Chef Dashboard"
             >
-              <span className="hidden sm:inline">👨‍🍳</span>
-              <span className="sm:hidden">👨‍🍳</span>
+              <span>👨‍🍳</span>
             </a>
             <div
-              className="bg-white/20 backdrop-blur-sm rounded-lg p-1.5 sm:p-2 min-w-[50px] sm:min-w-[60px] cursor-pointer hover:bg-white/30 transition-colors"
-              onClick={() => {
-                const orderQueueElement = document.querySelector('[data-order-queue]');
-                if (orderQueueElement) {
-                  orderQueueElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }
-              }}
+              className="bg-white/20 backdrop-blur-sm rounded-lg p-2 sm:p-2.5 min-w-[56px] sm:min-w-[64px] cursor-pointer hover:bg-white/30 transition-colors min-h-[44px] flex flex-col items-center justify-center"
+              onClick={() => setPendingSidebarOpen(true)}
               title="Click to view pending orders"
             >
               <div className="text-xs text-white/90">Pending</div>
-              <div className="text-base sm:text-lg font-bold text-white">{pendingOrdersCount}</div>
+              <div className="text-lg sm:text-lg font-bold text-white">{pendingOrdersCount}</div>
             </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-lg p-1.5 sm:p-2 min-w-[50px] sm:min-w-[60px] cursor-pointer" onClick={openPaymentRevenueModal}>
+            <div className="bg-white/20 backdrop-blur-sm rounded-lg p-2 sm:p-2.5 min-w-[56px] sm:min-w-[64px] cursor-pointer min-h-[44px] flex flex-col items-center justify-center" onClick={openPaymentRevenueModal}>
               <div className="text-xs text-white/90">Sales</div>
-              <div className="text-base sm:text-lg font-bold text-white">₹{dailySales}</div>
-              {/* <div className="text-xs text-white/90 mt-0.5">Click to view by payment mode</div> */}
+              <div className="text-lg sm:text-lg font-bold text-white">₹{dailySales}</div>
             </div>
             <button
               onClick={openServedOrdersModal}
-              className="p-1.5 sm:p-2 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md"
+              className="p-2 sm:p-2.5 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md min-h-[44px] min-w-[44px] flex items-center justify-center"
               title="Served Orders History"
             >
-              <History className="w-4 h-4 sm:w-5 sm:h-5" />
+              <History className="w-5 h-5 sm:w-5 sm:h-5" />
             </button>
             <button
               onClick={openReportModal}
-              className="p-1.5 sm:p-2 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md"
+              className="p-2 sm:p-2.5 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md min-h-[44px] min-w-[44px] flex items-center justify-center"
               title="Sales Report"
             >
-              <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
+              <BarChart3 className="w-5 h-5 sm:w-5 sm:h-5" />
             </button>
           </div>
         </div>
@@ -1653,7 +1648,7 @@ const CafeOrderSystem = () => {
 
       {/* Professional Bill Popup */}
       {viewingOrder && (
-        <div id="print-bill-overlay" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 print:block print:bg-white print:p-0 print:m-0">
+        <div id="print-bill-overlay" className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60] print:block print:bg-white print:p-0 print:m-0">
           <div id="print-bill-content" className="bg-white rounded-lg max-w-sm w-full max-h-[90vh] overflow-y-auto shadow-2xl border-2 border-gray-300 print:shadow-none print:border-none print:max-w-none print:w-full print:max-h-none print:overflow-visible print:p-0 print:m-0 print:min-h-screen print:flex print:flex-col">
             {/* Logo at Top */}
             <div className="flex justify-center py-2 px-4 border-b-2 border-gray-300 print:border-b print:border-black print:py-1 print:px-2">
@@ -1786,7 +1781,7 @@ const CafeOrderSystem = () => {
 
       {/* Confirmation Modal */}
       {isConfirmModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
           <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-900">Confirm Deletion</h2>
@@ -1883,7 +1878,7 @@ const CafeOrderSystem = () => {
 
       {/* Payment Mode Selection Modal */}
       {isPaymentModeModalOpen && orderToServe && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
           <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-gray-900">Select Payment Mode</h2>
@@ -2039,6 +2034,19 @@ const CafeOrderSystem = () => {
         </div>
       )}
 
+      {/* Pending Orders Sidebar */}
+      <PendingOrdersSidebar
+        isOpen={pendingSidebarOpen}
+        onClose={() => setPendingSidebarOpen(false)}
+        orders={orders}
+        selectedTableFilter={selectedTableFilter}
+        onOrderClick={handleOrderClick}
+        onEditOrder={editOrder}
+        onServeOrder={openPaymentModeModal}
+        onDeleteOrder={openConfirmModal}
+        onRemoveItem={removeItemFromOrder}
+      />
+
       {/* Animated Sidebar */}
       {sidebarOpen && (
         <>
@@ -2049,7 +2057,7 @@ const CafeOrderSystem = () => {
           />
 
           {/* Sidebar */}
-          <div className={`fixed left-0 top-0 h-full w-80 bg-white shadow-lg z-50 transform transition-transform duration-300 ease-in-out ${
+          <div className={`fixed left-0 top-0 h-full w-80 bg-white shadow-lg z-50 transform transition-transform duration-300 ease-in-out flex flex-col ${
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}>
             {/* Sidebar Header */}
