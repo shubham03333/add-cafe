@@ -1,12 +1,16 @@
 import React from 'react';
 import { Clock, ChefHat, Edit2, Trash2, X } from 'lucide-react';
-import { Order } from '@/types';
+import { Order, Table } from '@/types';
 
 interface PendingOrdersSidebarProps {
   isOpen: boolean;
   onClose: () => void;
   orders: Order[];
   selectedTableFilter: string | null;
+  setSelectedTableFilter: (filter: string | null) => void;
+  tables: Table[];
+  isDropdownOpen: boolean;
+  setIsDropdownOpen: (open: boolean) => void;
   onOrderClick: (order: Order) => void;
   onEditOrder: (order: Order) => void;
   onServeOrder: (order: Order) => void;
@@ -19,6 +23,10 @@ const PendingOrdersSidebar: React.FC<PendingOrdersSidebarProps> = ({
   onClose,
   orders,
   selectedTableFilter,
+  setSelectedTableFilter,
+  tables,
+  isDropdownOpen,
+  setIsDropdownOpen,
   onOrderClick,
   onEditOrder,
   onServeOrder,
@@ -53,6 +61,90 @@ const PendingOrdersSidebar: React.FC<PendingOrdersSidebarProps> = ({
               <X className="w-5 h-5" />
             </button>
           </div>
+        </div>
+
+        {/* Table Filter */}
+        <div className="bg-gray-50 p-4 border-b border-gray-200 flex-shrink-0">
+          <div className="relative">
+            <button
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="px-3 py-2 border border-gray-400 rounded-lg text-sm bg-white text-black focus:ring-2 focus:ring-red-500 focus:border-transparent w-full text-left flex items-center justify-between min-h-[40px] shadow-sm hover:border-gray-500 transition-colors"
+            >
+              <span className="truncate">
+                {selectedTableFilter ? (
+                  (() => {
+                    const tableDetails = tables.find(table => table.table_code === selectedTableFilter);
+                    return (
+                      <>
+                        <span className="sm:hidden">T{selectedTableFilter}</span>
+                        <span className="hidden sm:inline">
+                          {tableDetails ? `Table ${selectedTableFilter} - ${tableDetails.table_name}` : `Table ${selectedTableFilter}`}
+                        </span>
+                      </>
+                    );
+                  })()
+                ) : (
+                  'All Tables'
+                )}
+              </span>
+              <svg
+                className={`w-4 h-4 text-gray-600 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+
+            {/* Custom dropdown options */}
+            {isDropdownOpen && (
+              <div className="absolute top-full left-0 right-0 z-50 bg-white border border-gray-300 rounded-b-lg shadow-lg max-h-48 overflow-y-auto">
+                <button
+                  onClick={() => {
+                    setSelectedTableFilter(null);
+                    setIsDropdownOpen(false);
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-black hover:bg-gray-100 transition-colors border-b border-gray-100"
+                >
+                  All Tables
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedTableFilter('takeaway');
+                    setIsDropdownOpen(false);
+                  }}
+                  className="w-full px-3 py-2 text-left text-sm text-black hover:bg-gray-100 transition-colors border-b border-gray-100"
+                >
+                  Takeaway Orders
+                </button>
+                {tables.filter(table => orders.some(order => order.table_code === table.table_code && order.status !== 'served')).map(table => (
+                  <button
+                    key={table.table_code}
+                    onClick={() => {
+                      setSelectedTableFilter(table.table_code);
+                      setIsDropdownOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-black hover:bg-gray-100 transition-colors"
+                  >
+                    <span className="sm:hidden">T{table.table_code}</span>
+                    <span className="hidden sm:inline">
+                      Table {table.table_code} - {table.table_name}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Click outside to close */}
+          {isDropdownOpen && (
+            <div
+              className="fixed inset-0 z-40"
+              onClick={() => setIsDropdownOpen(false)}
+            />
+          )}
         </div>
 
         {/* Order Queue Content */}

@@ -78,11 +78,14 @@ export async function GET(request: NextRequest) {
         AND JSON_VALID(items) = 1
     `, [startDate, endDate]) as any[];
 
+    console.log('Orders data count:', ordersData.length);
+    console.log('Sample order items:', ordersData[0]?.items);
+
     // Process items in JS to aggregate top items
     const itemMap = new Map<string, number>();
     ordersData.forEach(order => {
       try {
-        const items = JSON.parse(order.items);
+        const items = order.items;
         if (Array.isArray(items)) {
           items.forEach((item: any) => {
             const name = item.name?.trim();
@@ -93,7 +96,7 @@ export async function GET(request: NextRequest) {
           });
         }
       } catch (e) {
-        // Skip invalid JSON
+        // Skip invalid items
       }
     });
 
