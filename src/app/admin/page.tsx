@@ -856,11 +856,7 @@ const AdminControlPanel = () => {
         )}
 
         {/* Sales Reports Tab */}
-        {activeTab === 'reports' && (
-          <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/80 sm:p-6">
-            <SalesReport />
-          </div>
-        )}
+        {activeTab === 'reports' && <SalesReport />}
 
         {/* System Settings Tab */}
         {activeTab === 'settings' && (

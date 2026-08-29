@@ -25,6 +25,47 @@ const RANGE_OPTIONS = [
   { days: 365, label: '1 yr', period: 'monthly' as const },
 ];
 
+type ChartPeriod = 'daily' | 'monthly' | 'yearly';
+
+const toYmd = (d: Date) => {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+};
+
+const periodForSpan = (from: string, to: string): ChartPeriod => {
+  const days =
+    Math.ceil(
+      (new Date(`${to}T00:00:00`).getTime() - new Date(`${from}T00:00:00`).getTime()) / 86400000
+    ) + 1;
+  if (days > 800) return 'yearly';
+  if (days > 90) return 'monthly';
+  return 'daily';
+};
+
+const trendLabel = (raw: string, period: ChartPeriod) => {
+  if (period === 'yearly' || /^\d{4}$/.test(raw)) return raw;
+  const isMonth = period === 'monthly' || /^\d{4}-\d{2}$/.test(raw);
+  const date = new Date(isMonth ? `${raw}-01T00:00:00` : raw.includes('T') ? raw : `${raw}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return raw;
+  return date.toLocaleDateString('en-IN', isMonth
+    ? { month: 'short', year: '2-digit' }
+    : { day: 'numeric', month: 'short' });
+};
+
+const periodCaption: Record<ChartPeriod, string> = {
+  daily: 'Daily',
+  monthly: 'Monthly',
+  yearly: 'Yearly',
+};
+
+const ordersHeading: Record<ChartPeriod, string> = {
+  daily: 'Orders per day',
+  monthly: 'Orders per month',
+  yearly: 'Orders per year',
+};
+
 const COLORS = ['#b91c1c', '#0f766e', '#d97706', '#1d4ed8', '#7c3aed', '#be185d'];
 
 const formatINR = (value: number) =>
@@ -67,20 +108,70 @@ export default function AdminOverview({
   onResetTodaysSales,
 }: AdminOverviewProps) {
   const [rangeDays, setRangeDays] = useState(7);
-  const chartPeriod = RANGE_OPTIONS.find((o) => o.days === rangeDays)?.period || 'daily';
-  const rangeLabel = RANGE_OPTIONS.find((o) => o.days === rangeDays)?.label || `${rangeDays}d`;
+  const [customFrom, setCustomFrom] = useState(() => {
+    const from = new Date();
+    from.setDate(from.getDate() - 6);
+    return toYmd(from);
+  });
+  const [customTo, setCustomTo] = useState(() => toYmd(new Date()));
+  const [appliedCustom, setAppliedCustom] = useState<{ from: string; to: string } | null>(null);
+  const [dateError, setDateError] = useState('');
+  const chartPeriod: ChartPeriod = appliedCustom
+    ? periodForSpan(appliedCustom.from, appliedCustom.to)
+    : RANGE_OPTIONS.find((o) => o.days === rangeDays)?.period || 'daily';
+  const rangeLabel = appliedCustom
+    ? `${appliedCustom.from} → ${appliedCustom.to}`
+    : RANGE_OPTIONS.find((o) => o.days === rangeDays)?.label || `${rangeDays}d`;
   const [trend, setTrend] = useState<any[]>([]);
   const [dishes, setDishes] = useState<any[]>([]);
   const [chartsLoading, setChartsLoading] = useState(true);
+
+  const applyCustomRange = () => {
+    if (!customFrom || !customTo) {
+      setDateError('Choose both from and to dates');
+      return;
+    }
+    if (customFrom > customTo) {
+      setDateError('From date must be on or before to date');
+      return;
+    }
+    const span =
+      Math.ceil(
+        (new Date(`${customTo}T00:00:00`).getTime() - new Date(`${customFrom}T00:00:00`).getTime()) / 86400000
+      ) + 1;
+    if (span > 365 * 15) {
+      setDateError('Range cannot exceed 15 years');
+      return;
+    }
+    setDateError('');
+    setAppliedCustom({ from: customFrom, to: customTo });
+  };
+
+  const selectPreset = (days: number) => {
+    setAppliedCustom(null);
+    setDateError('');
+    setRangeDays(days);
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - (days - 1));
+    setCustomFrom(toYmd(from));
+    setCustomTo(toYmd(to));
+  };
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
       setChartsLoading(true);
       try {
+        const analyticsQs = appliedCustom
+          ? `period=${chartPeriod}&startDate=${appliedCustom.from}&endDate=${appliedCustom.to}`
+          : `period=${chartPeriod}&days=${rangeDays}`;
+        const demandQs = appliedCustom
+          ? `startDate=${appliedCustom.from}&endDate=${appliedCustom.to}`
+          : `days=${rangeDays}`;
         const [analyticsRes, demandRes] = await Promise.all([
-          fetch(`/api/orders/analytics?period=${chartPeriod}&days=${rangeDays}`),
-          fetch(`/api/orders/demand?days=${rangeDays}`),
+          fetch(`/api/orders/analytics?${analyticsQs}`),
+          fetch(`/api/orders/demand?${demandQs}`),
         ]);
         const analytics = analyticsRes.ok ? await analyticsRes.json() : { data: [] };
         const demand = demandRes.ok ? await demandRes.json() : [];
@@ -90,14 +181,8 @@ export default function AdminOverview({
           .reverse()
           .map((row: any) => {
             const raw = String(row.time_period || '');
-            const isMonth = chartPeriod === 'monthly' || /^\d{4}-\d{2}$/.test(raw);
-            const date = new Date(isMonth ? `${raw}-01T00:00:00` : raw.includes('T') ? raw : `${raw}T00:00:00`);
             return {
-              label: Number.isNaN(date.getTime())
-                ? raw
-                : date.toLocaleDateString('en-IN', isMonth
-                  ? { month: 'short', year: '2-digit' }
-                  : { day: 'numeric', month: 'short' }),
+              label: trendLabel(raw, chartPeriod),
               orders: Number(row.order_count) || 0,
               revenue: Number(row.total_revenue) || 0,
             };
@@ -127,7 +212,7 @@ export default function AdminOverview({
     return () => {
       cancelled = true;
     };
-  }, [rangeDays, chartPeriod]);
+  }, [rangeDays, chartPeriod, appliedCustom]);
 
   const paymentData = useMemo(() => {
     const cash = Number(todaysSales.payment_breakdown?.cash?.revenue) || 0;
@@ -181,30 +266,64 @@ export default function AdminOverview({
           <h2 className="text-2xl font-semibold tracking-tight text-zinc-900">Overview</h2>
           <p className="mt-1 text-sm text-zinc-500">Live cafe performance — same data as reports, easier to scan.</p>
         </div>
+        <button
+          type="button"
+          onClick={onResetTodaysSales}
+          disabled={salesLoading}
+          className="min-h-[40px] rounded-full bg-white px-3 text-sm font-medium text-red-700 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50"
+        >
+          Reset today
+        </button>
+      </div>
+
+      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200/80 sm:p-5">
         <div className="flex flex-wrap items-center gap-2">
           {RANGE_OPTIONS.map((opt) => (
             <button
               key={opt.days}
               type="button"
-              onClick={() => setRangeDays(opt.days)}
+              onClick={() => selectPreset(opt.days)}
               className={`min-h-[40px] rounded-full px-3 text-sm font-medium transition-colors ${
-                rangeDays === opt.days
+                !appliedCustom && rangeDays === opt.days
                   ? 'bg-zinc-900 text-white'
-                  : 'bg-white text-zinc-600 ring-1 ring-zinc-200 hover:bg-zinc-50'
+                  : 'bg-zinc-50 text-zinc-600 ring-1 ring-zinc-200 hover:bg-zinc-100'
               }`}
             >
               {opt.label}
             </button>
           ))}
+        </div>
+        <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+          <label className="flex-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            From
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(e) => setCustomFrom(e.target.value)}
+              className="mt-1 min-h-[44px] w-full rounded-xl border-0 bg-zinc-50 px-3 text-sm text-zinc-900 ring-1 ring-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-900"
+            />
+          </label>
+          <label className="flex-1 text-xs font-medium uppercase tracking-wide text-zinc-500">
+            To
+            <input
+              type="date"
+              value={customTo}
+              onChange={(e) => setCustomTo(e.target.value)}
+              className="mt-1 min-h-[44px] w-full rounded-xl border-0 bg-zinc-50 px-3 text-sm text-zinc-900 ring-1 ring-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-900"
+            />
+          </label>
           <button
             type="button"
-            onClick={onResetTodaysSales}
-            disabled={salesLoading}
-            className="min-h-[40px] rounded-full bg-white px-3 text-sm font-medium text-red-700 ring-1 ring-red-200 hover:bg-red-50 disabled:opacity-50"
+            onClick={applyCustomRange}
+            className="min-h-[44px] rounded-xl bg-zinc-900 px-5 text-sm font-medium text-white hover:bg-zinc-800"
           >
-            Reset today
+            Apply range
           </button>
         </div>
+        {dateError ? <p className="mt-2 text-sm text-red-600">{dateError}</p> : null}
+        <p className="mt-2 text-xs text-zinc-500">
+          Custom from/to can span multiple years. Spans over 90 days group by month; over ~2 years by calendar year.
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -233,7 +352,7 @@ export default function AdminOverview({
           <div className="mb-4">
             <h3 className="text-base font-semibold text-zinc-900">Revenue trend</h3>
             <p className="text-xs text-zinc-500">
-              {chartPeriod === 'monthly' ? 'Monthly' : 'Daily'} totals · last {rangeLabel}
+              {periodCaption[chartPeriod]} totals · {appliedCustom ? rangeLabel : `last ${rangeLabel}`}
             </p>
           </div>
           <div className="h-64">
@@ -321,7 +440,7 @@ export default function AdminOverview({
         <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/80">
           <div className="mb-4">
             <h3 className="text-base font-semibold text-zinc-900">
-              {chartPeriod === 'monthly' ? 'Orders per month' : 'Orders per day'}
+              {ordersHeading[chartPeriod]}
             </h3>
             <p className="text-xs text-zinc-500">Volume, not revenue</p>
           </div>
@@ -347,7 +466,7 @@ export default function AdminOverview({
         <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/80">
           <div className="mb-4">
             <h3 className="text-base font-semibold text-zinc-900">Top dishes</h3>
-            <p className="text-xs text-zinc-500">Quantity sold in the last {rangeLabel}</p>
+            <p className="text-xs text-zinc-500">Quantity sold · {appliedCustom ? rangeLabel : `last ${rangeLabel}`}</p>
           </div>
           <div className="h-60">
             {chartsLoading || dishes.length === 0 ? (

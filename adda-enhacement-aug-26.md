@@ -136,12 +136,13 @@ Critique: sales KPIs were fetched and never shown; tabs were long and duplicated
 
 Shipped (same APIs):
 
-- Default **Overview** tab (`src/components/AdminOverview.tsx`) with Recharts: revenue area, orders bar, payment donut, top dishes. Range 7 / 30 / 90 days. Reset today still uses `/api/daily-sales/reset`.
+- Default **Overview** tab (`src/components/AdminOverview.tsx`) with Recharts: revenue area, orders bar, payment donut, top dishes. Presets 7d / 30d / 90d / 6 mo / 1 yr plus custom **From / To** (multi-year). Analytics/demand APIs accept `startDate` & `endDate`. Reset today still uses `/api/daily-sales/reset`.
+- **Reports** tab: modern zinc layout, date presets + pickers, Recharts daily trend, same `/api/sales-report` and daily-order APIs.
 - Analytics tab: real bar + area charts (`OrderAnalyticsChart.tsx`).
 - Sticky header + tabs, shorter labels, occupancy on tables, menu search + category chips, Show/Hide instead of emojis.
 - Dependency: `recharts`.
 
-Verify: log in as admin → Overview charts load → Menu search/edit/save positions → Tables occupancy → Analytics period filters → Reports unchanged.
+Verify: log in as admin → Overview presets + custom from/to → Reports generate + click a day.
 
 ---
 

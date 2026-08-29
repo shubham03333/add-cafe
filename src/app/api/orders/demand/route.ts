@@ -1,19 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { parseOrderItems } from '@/lib/order-utils';
+import { addDays } from '@/lib/date-range';
+
+const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
     const days = Math.min(366, Math.max(1, parseInt(searchParams.get('days') || '30', 10)));
+
+    let whereSql = 'WHERE order_time >= DATE_SUB(NOW(), INTERVAL ? DAY) AND status != \'cancelled\'';
+    let params: any[] = [days];
+
+    if (startDate && endDate && YMD.test(startDate) && YMD.test(endDate) && startDate <= endDate) {
+      whereSql = 'WHERE order_time >= ? AND order_time < ? AND status != \'cancelled\'';
+      params = [`${startDate} 00:00:00`, `${addDays(endDate, 1)} 00:00:00`];
+    }
 
     const orders = await executeQuery(
       `SELECT items, total
        FROM orders
-       WHERE order_time >= DATE_SUB(NOW(), INTERVAL ? DAY)
-         AND status != 'cancelled'
+       ${whereSql}
        LIMIT 15000`,
-      [days]
+      params
     ) as any[];
 
     const dishDataMap = new Map<number, { name: string; quantity: number; revenue: number }>();
