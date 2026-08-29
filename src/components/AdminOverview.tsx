@@ -17,6 +17,14 @@ import {
 } from 'recharts';
 import { IndianRupee, ShoppingBag, TrendingUp, UtensilsCrossed } from 'lucide-react';
 
+const RANGE_OPTIONS = [
+  { days: 7, label: '7d', period: 'daily' as const },
+  { days: 30, label: '30d', period: 'daily' as const },
+  { days: 90, label: '90d', period: 'daily' as const },
+  { days: 180, label: '6 mo', period: 'monthly' as const },
+  { days: 365, label: '1 yr', period: 'monthly' as const },
+];
+
 const COLORS = ['#b91c1c', '#0f766e', '#d97706', '#1d4ed8', '#7c3aed', '#be185d'];
 
 const formatINR = (value: number) =>
@@ -59,6 +67,8 @@ export default function AdminOverview({
   onResetTodaysSales,
 }: AdminOverviewProps) {
   const [rangeDays, setRangeDays] = useState(7);
+  const chartPeriod = RANGE_OPTIONS.find((o) => o.days === rangeDays)?.period || 'daily';
+  const rangeLabel = RANGE_OPTIONS.find((o) => o.days === rangeDays)?.label || `${rangeDays}d`;
   const [trend, setTrend] = useState<any[]>([]);
   const [dishes, setDishes] = useState<any[]>([]);
   const [chartsLoading, setChartsLoading] = useState(true);
@@ -69,7 +79,7 @@ export default function AdminOverview({
       setChartsLoading(true);
       try {
         const [analyticsRes, demandRes] = await Promise.all([
-          fetch(`/api/orders/analytics?period=daily&days=${rangeDays}`),
+          fetch(`/api/orders/analytics?period=${chartPeriod}&days=${rangeDays}`),
           fetch(`/api/orders/demand?days=${rangeDays}`),
         ]);
         const analytics = analyticsRes.ok ? await analyticsRes.json() : { data: [] };
@@ -80,11 +90,14 @@ export default function AdminOverview({
           .reverse()
           .map((row: any) => {
             const raw = String(row.time_period || '');
-            const date = new Date(raw.includes('T') ? raw : `${raw}T00:00:00`);
+            const isMonth = chartPeriod === 'monthly' || /^\d{4}-\d{2}$/.test(raw);
+            const date = new Date(isMonth ? `${raw}-01T00:00:00` : raw.includes('T') ? raw : `${raw}T00:00:00`);
             return {
               label: Number.isNaN(date.getTime())
-                ? raw.slice(5)
-                : date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+                ? raw
+                : date.toLocaleDateString('en-IN', isMonth
+                  ? { month: 'short', year: '2-digit' }
+                  : { day: 'numeric', month: 'short' }),
               orders: Number(row.order_count) || 0,
               revenue: Number(row.total_revenue) || 0,
             };
@@ -114,7 +127,7 @@ export default function AdminOverview({
     return () => {
       cancelled = true;
     };
-  }, [rangeDays]);
+  }, [rangeDays, chartPeriod]);
 
   const paymentData = useMemo(() => {
     const cash = Number(todaysSales.payment_breakdown?.cash?.revenue) || 0;
@@ -169,18 +182,18 @@ export default function AdminOverview({
           <p className="mt-1 text-sm text-zinc-500">Live cafe performance — same data as reports, easier to scan.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {[7, 30, 90].map((d) => (
+          {RANGE_OPTIONS.map((opt) => (
             <button
-              key={d}
+              key={opt.days}
               type="button"
-              onClick={() => setRangeDays(d)}
+              onClick={() => setRangeDays(opt.days)}
               className={`min-h-[40px] rounded-full px-3 text-sm font-medium transition-colors ${
-                rangeDays === d
+                rangeDays === opt.days
                   ? 'bg-zinc-900 text-white'
                   : 'bg-white text-zinc-600 ring-1 ring-zinc-200 hover:bg-zinc-50'
               }`}
             >
-              {d}d
+              {opt.label}
             </button>
           ))}
           <button
@@ -219,7 +232,9 @@ export default function AdminOverview({
         <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/80 lg:col-span-3">
           <div className="mb-4">
             <h3 className="text-base font-semibold text-zinc-900">Revenue trend</h3>
-            <p className="text-xs text-zinc-500">Daily totals for the last {rangeDays} days</p>
+            <p className="text-xs text-zinc-500">
+              {chartPeriod === 'monthly' ? 'Monthly' : 'Daily'} totals · last {rangeLabel}
+            </p>
           </div>
           <div className="h-64">
             {chartsLoading ? (
@@ -305,7 +320,9 @@ export default function AdminOverview({
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/80">
           <div className="mb-4">
-            <h3 className="text-base font-semibold text-zinc-900">Orders per day</h3>
+            <h3 className="text-base font-semibold text-zinc-900">
+              {chartPeriod === 'monthly' ? 'Orders per month' : 'Orders per day'}
+            </h3>
             <p className="text-xs text-zinc-500">Volume, not revenue</p>
           </div>
           <div className="h-60">
@@ -330,7 +347,7 @@ export default function AdminOverview({
         <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/80">
           <div className="mb-4">
             <h3 className="text-base font-semibold text-zinc-900">Top dishes</h3>
-            <p className="text-xs text-zinc-500">Quantity sold in the last {rangeDays} days</p>
+            <p className="text-xs text-zinc-500">Quantity sold in the last {rangeLabel}</p>
           </div>
           <div className="h-60">
             {chartsLoading || dishes.length === 0 ? (

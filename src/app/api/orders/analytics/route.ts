@@ -5,7 +5,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get('period') || 'hourly';
-    const days = Math.min(90, Math.max(1, parseInt(searchParams.get('days') || '7', 10)));
+    const days = Math.min(366, Math.max(1, parseInt(searchParams.get('days') || '7', 10)));
 
     let groupBy: string;
 
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
        WHERE order_time >= DATE_SUB(NOW(), INTERVAL ? DAY)
        GROUP BY ${groupBy}
        ORDER BY time_period DESC
-       LIMIT 50`,
+       LIMIT 400`,
       [days]
     ) as any[];
 

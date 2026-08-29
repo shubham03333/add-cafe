@@ -5,14 +5,14 @@ import { parseOrderItems } from '@/lib/order-utils';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const days = Math.min(90, Math.max(1, parseInt(searchParams.get('days') || '30', 10)));
+    const days = Math.min(366, Math.max(1, parseInt(searchParams.get('days') || '30', 10)));
 
     const orders = await executeQuery(
       `SELECT items, total
        FROM orders
        WHERE order_time >= DATE_SUB(NOW(), INTERVAL ? DAY)
          AND status != 'cancelled'
-       LIMIT 5000`,
+       LIMIT 15000`,
       [days]
     ) as any[];
 

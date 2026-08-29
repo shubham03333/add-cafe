@@ -51,7 +51,8 @@ const OrderAnalyticsChart: React.FC<OrderAnalyticsChartProps> = ({ className = '
   }, [period, days]);
 
   const formatTimeLabel = (timePeriod: string) => {
-    const date = new Date(timePeriod);
+    const isMonthOnly = period === 'monthly' || /^\d{4}-\d{2}$/.test(timePeriod);
+    const date = new Date(isMonthOnly ? `${timePeriod}-01T00:00:00` : timePeriod);
 
     switch (period) {
       case 'hourly':
@@ -153,13 +154,21 @@ const OrderAnalyticsChart: React.FC<OrderAnalyticsChartProps> = ({ className = '
             <span className="text-sm text-gray-600">Days:</span>
             <select
               value={days}
-              onChange={(e) => setDays(parseInt(e.target.value))}
+              onChange={(e) => {
+                const next = parseInt(e.target.value, 10);
+                setDays(next);
+                if (next >= 180 && (period === 'hourly' || period === 'daily')) {
+                  setPeriod('monthly');
+                }
+              }}
               className="px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-red-500"
             >
               <option value="1">1 Day</option>
               <option value="7">7 Days</option>
               <option value="30">30 Days</option>
               <option value="90">90 Days</option>
+              <option value="180">6 Months</option>
+              <option value="365">1 Year</option>
             </select>
           </div>
 
@@ -180,7 +189,9 @@ const OrderAnalyticsChart: React.FC<OrderAnalyticsChartProps> = ({ className = '
             <div>
               <div className="text-sm text-blue-700 font-medium mb-1">Total Orders</div>
               <div className="text-2xl font-bold text-blue-900">{totalOrders.toLocaleString('en-IN')}</div>
-              <div className="text-xs text-blue-600 mt-1">Last {days} days</div>
+              <div className="text-xs text-blue-600 mt-1">
+                Last {days === 365 ? 'year' : days === 180 ? '6 months' : `${days} days`}
+              </div>
             </div>
             <div className="p-2 bg-blue-100 rounded-lg group-hover:bg-blue-200 transition-colors">
               <TrendingUp className="w-6 h-6 text-blue-600" />
