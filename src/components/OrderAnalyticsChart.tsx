@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { BarChart3, TrendingUp, TrendingDown, Calendar, RefreshCw, Download, Eye, Target } from 'lucide-react';
+import { BarChart3, TrendingUp, Calendar, RefreshCw, Target } from 'lucide-react';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
 interface AnalyticsData {
   time_period: string;
@@ -80,7 +81,6 @@ const OrderAnalyticsChart: React.FC<OrderAnalyticsChartProps> = ({ className = '
     }
   };
 
-  const maxOrderCount = Math.max(...analyticsData.map(d => d.order_count), 1);
   const peakPeriod = analyticsData.reduce((max, current) => current.order_count > max.order_count ? current : max, analyticsData[0] || null);
 
   if (loading) {
@@ -234,121 +234,60 @@ const OrderAnalyticsChart: React.FC<OrderAnalyticsChartProps> = ({ className = '
         </div>
       </div>
 
-      {/* Enhanced Bar Chart */}
-      <div className="mb-4">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-gray-900">
-            Orders by {period.charAt(0).toUpperCase() + period.slice(1)} Period
-          </h3>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {/* Export functionality can be added here */}}
-              className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-              title="Export Data"
-            >
-              <Download className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => {/* View details functionality */}}
-              className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-lg transition-colors"
-              title="View Details"
-            >
-              <Eye className="w-4 h-4" />
-            </button>
-          </div>
+      {/* Charts */}
+      <div className="mb-2 grid gap-6 lg:grid-cols-2">
+        <div className="h-72">
+          <h3 className="mb-3 text-sm font-semibold text-zinc-800">Orders</h3>
+          {analyticsData.length === 0 ? (
+            <div className="flex h-full items-center justify-center rounded-xl bg-zinc-50 text-sm text-zinc-400">No data</div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={[...analyticsData].reverse()} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false} />
+                <XAxis dataKey="time_period" tickFormatter={formatTimeLabel} tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#71717a' }} axisLine={false} tickLine={false} width={32} />
+                <Tooltip
+                  labelFormatter={(l) => formatTimeLabel(String(l))}
+                  formatter={(v) => [Number(v) || 0, 'Orders']}
+                  contentStyle={{ borderRadius: 12, border: '1px solid #e4e4e7' }}
+                />
+                <Bar dataKey="order_count" fill="#b91c1c" radius={[6, 6, 0, 0]} maxBarSize={40} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
         </div>
-
-        {analyticsData.length === 0 ? (
-          <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
-            <BarChart3 className="w-16 h-16 mx-auto mb-4 opacity-50" />
-            <div className="text-lg">No data available</div>
-            <div className="text-sm mt-2">Try adjusting the time period or date range</div>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {analyticsData.map((data, index) => {
-              const percentage = (data.order_count / maxOrderCount) * 100;
-              const prevData = analyticsData[index + 1];
-              const trend = prevData ? (data.order_count > prevData.order_count ? 'up' : data.order_count < prevData.order_count ? 'down' : 'same') : null;
-
-              return (
-                <div
-                  key={index}
-                  className="group relative bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-all duration-300 hover:border-red-200"
-                >
-                  {/* Trend Indicator */}
-                  {trend && (
-                    <div className="absolute -top-2 -right-2 z-10">
-                      <div className={`p-1 rounded-full shadow-sm ${
-                        trend === 'up' ? 'bg-green-100 text-green-600' :
-                        trend === 'down' ? 'bg-red-100 text-red-600' :
-                        'bg-gray-100 text-gray-600'
-                      }`}>
-                        {trend === 'up' ? <TrendingUp className="w-3 h-3" /> :
-                         trend === 'down' ? <TrendingDown className="w-3 h-3" /> :
-                         <Target className="w-3 h-3" />}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-4">
-                    {/* Time Period Label */}
-                    <div className="w-28 text-sm text-gray-700 font-medium flex-shrink-0">
-                      {formatTimeLabel(data.time_period)}
-                    </div>
-
-                    {/* Enhanced Bar Chart */}
-                    <div className="flex-1">
-                      <div className="flex items-center gap-4">
-                        {/* Animated Bar */}
-                        <div className="flex-1 relative">
-                          <div className="bg-gray-100 rounded-full h-8 overflow-hidden shadow-inner">
-                            <div
-                              className="bg-gradient-to-r from-red-400 via-red-500 to-red-600 h-full rounded-full transition-all duration-1000 ease-out flex items-center justify-end pr-3 shadow-sm"
-                              style={{
-                                width: `${percentage}%`,
-                                minWidth: data.order_count > 0 ? '30px' : '0px'
-                              }}
-                            >
-                              {/* Bar Label */}
-                              <span className="text-white text-sm font-bold drop-shadow-sm">
-                                {data.order_count}
-                              </span>
-                            </div>
-                          </div>
-
-                          {/* Percentage Indicator */}
-                          <div className="absolute -top-6 left-0 text-xs text-gray-500 font-medium">
-                            {percentage.toFixed(1)}%
-                          </div>
-                        </div>
-
-                        {/* Revenue & Average */}
-                        <div className="flex flex-col items-end min-w-[100px] gap-1">
-                          <div className="text-sm font-bold text-gray-900">
-                            ₹{data.total_revenue.toLocaleString('en-IN')}
-                          </div>
-                          <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded-full">
-                            Avg: ₹{Math.round(data.avg_order_value).toLocaleString('en-IN')}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Hover Details */}
-                      <div className="mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                        <div className="flex justify-between text-xs text-gray-600 bg-gray-50 rounded px-3 py-2">
-                          <span>Orders: {data.order_count}</span>
-                          <span>Revenue: ₹{data.total_revenue.toLocaleString('en-IN')}</span>
-                          <span>Avg: ₹{Math.round(data.avg_order_value).toLocaleString('en-IN')}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <div className="h-72">
+          <h3 className="mb-3 text-sm font-semibold text-zinc-800">Revenue</h3>
+          {analyticsData.length === 0 ? (
+            <div className="flex h-full items-center justify-center rounded-xl bg-zinc-50 text-sm text-zinc-400">No data</div>
+          ) : (
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={[...analyticsData].reverse()} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="analyticsRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#0f766e" stopOpacity={0.3} />
+                    <stop offset="100%" stopColor="#0f766e" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f4f4f5" vertical={false} />
+                <XAxis dataKey="time_period" tickFormatter={formatTimeLabel} tick={{ fontSize: 10, fill: '#71717a' }} axisLine={false} tickLine={false} />
+                <YAxis
+                  tick={{ fontSize: 11, fill: '#71717a' }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={44}
+                  tickFormatter={(v) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))}
+                />
+                <Tooltip
+                  labelFormatter={(l) => formatTimeLabel(String(l))}
+                  formatter={(v) => [`₹${Number(v || 0).toLocaleString('en-IN')}`, 'Revenue']}
+                  contentStyle={{ borderRadius: 12, border: '1px solid #e4e4e7' }}
+                />
+                <Area type="monotone" dataKey="total_revenue" stroke="#0f766e" strokeWidth={2.5} fill="url(#analyticsRevenue)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
 
       {/* Legend */}
