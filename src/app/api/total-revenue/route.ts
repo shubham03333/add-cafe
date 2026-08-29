@@ -1,21 +1,29 @@
 import { NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
+import { cache, CACHE_KEYS, CACHE_TTL } from '@/lib/cache';
 
 export async function GET() {
   try {
-    // Query to get total cumulative revenue from all served orders
+    const cached = cache.get(CACHE_KEYS.TOTAL_REVENUE);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     const result = await executeQuery(
-      `SELECT 
-        SUM(total) as total_revenue,
+      `SELECT
+        COALESCE(SUM(total), 0) as total_revenue,
         COUNT(*) as total_orders
-       FROM orders 
+       FROM orders
        WHERE status = 'served'`
     ) as any[];
 
-    return NextResponse.json({
+    const payload = {
       total_revenue: result[0]?.total_revenue || 0,
       total_orders: result[0]?.total_orders || 0
-    });
+    };
+
+    cache.set(CACHE_KEYS.TOTAL_REVENUE, payload, CACHE_TTL.TOTAL_REVENUE);
+    return NextResponse.json(payload);
   } catch (error) {
     console.error('Error fetching total revenue:', error);
     return NextResponse.json(

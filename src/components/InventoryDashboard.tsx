@@ -160,7 +160,7 @@ const fetchInventory = async (isBackgroundRefresh = false) => {
     // Set up polling for real-time updates
     const pollingInterval = setInterval(() => {
       fetchInventory(true); // Pass true for background refresh
-    }, 5000); // Poll every 5 seconds
+    }, 15000);
     
     // Clean up interval on component unmount
     return () => clearInterval(pollingInterval);

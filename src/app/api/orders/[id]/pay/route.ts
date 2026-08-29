@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
+import { cache, CACHE_KEYS } from '@/lib/cache';
 
 export async function POST(
   request: NextRequest,
@@ -22,6 +23,9 @@ export async function POST(
       'UPDATE orders SET payment_status = ?, payment_mode = ? WHERE id = ?',
       ['paid', paymentMode, id]
     );
+
+    cache.delete(CACHE_KEYS.TODAY_SALES);
+    cache.delete(CACHE_KEYS.TOTAL_REVENUE);
 
     return NextResponse.json({
       success: true,

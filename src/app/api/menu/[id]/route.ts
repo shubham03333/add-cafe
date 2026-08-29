@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { cache, CACHE_KEYS } from '@/lib/cache';
+import { cache } from '@/lib/cache';
 
 export async function PUT(
   request: Request,
@@ -63,17 +63,7 @@ export async function PUT(
       [name, price, category, is_available, id]
     );
 
-    // Invalidate cache to ensure dashboard reflects changes immediately
-    cache.delete(CACHE_KEYS.MENU_ITEMS);
-    cache.delete(CACHE_KEYS.MENU_ITEMS + '_available');
-
-    // Also clear category-specific caches if category changed
-    if (category !== currentItem.category) {
-      cache.delete(CACHE_KEYS.MENU_ITEMS_BY_CATEGORY(currentItem.category));
-      cache.delete(CACHE_KEYS.MENU_ITEMS_BY_CATEGORY(category));
-      cache.delete(CACHE_KEYS.MENU_ITEMS_BY_CATEGORY(currentItem.category) + '_available');
-      cache.delete(CACHE_KEYS.MENU_ITEMS_BY_CATEGORY(category) + '_available');
-    }
+    cache.deleteByPrefix('menu_items');
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -110,14 +100,7 @@ export async function DELETE(
       [id]
     );
 
-    // Invalidate cache to ensure dashboard reflects changes immediately
-    cache.delete(CACHE_KEYS.MENU_ITEMS);
-    cache.delete(CACHE_KEYS.MENU_ITEMS + '_available');
-
-    if (category) {
-      cache.delete(CACHE_KEYS.MENU_ITEMS_BY_CATEGORY(category));
-      cache.delete(CACHE_KEYS.MENU_ITEMS_BY_CATEGORY(category) + '_available');
-    }
+    cache.deleteByPrefix('menu_items');
 
     return NextResponse.json({ success: true });
   } catch (error) {

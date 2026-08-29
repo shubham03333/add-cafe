@@ -3,6 +3,7 @@
  */
 
 import { db } from './db';
+import { cache, CACHE_KEYS, CACHE_TTL } from './cache';
 
 // Timezone offset mappings
 const TIMEZONE_OFFSETS: Record<string, number> = {
@@ -17,21 +18,29 @@ const TIMEZONE_OFFSETS: Record<string, number> = {
  * Get the configured timezone from system settings
  */
 export async function getConfiguredTimezone(): Promise<string> {
-  if (!db) {
-    return 'IST'; // Default to IST if database not configured
+  const cached = cache.get<string>(CACHE_KEYS.TIMEZONE);
+  if (cached) {
+    return cached;
   }
-  
-  try {
-    const result = await db.execute('SELECT setting_value FROM system_settings WHERE setting_name = ?', ['timezone']);
-    const [rows] = result as any[];
-    if (rows && rows.length > 0) {
-      return rows[0].setting_value || 'IST';
+
+  let timezone = 'IST';
+
+  if (db) {
+    try {
+      const [rows] = await db.query(
+        'SELECT setting_value FROM system_settings WHERE setting_name = ? LIMIT 1',
+        ['timezone']
+      ) as [any[], any];
+      if (rows && rows.length > 0) {
+        timezone = rows[0].setting_value || 'IST';
+      }
+    } catch (error) {
+      console.error('Failed to fetch timezone setting:', error);
     }
-  } catch (error) {
-    console.error('Failed to fetch timezone setting:', error);
   }
-  
-  return 'IST'; // Default to IST
+
+  cache.set(CACHE_KEYS.TIMEZONE, timezone, CACHE_TTL.TIMEZONE);
+  return timezone;
 }
 
 /**

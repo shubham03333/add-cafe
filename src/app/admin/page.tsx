@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Save, X, Edit2, Trash2, Plus, BarChart3, Settings, Menu, Users, Package, LogOut, TrendingUp, Palette, Wifi, WifiOff, Table } from 'lucide-react';
+import { Save, X, Edit2, Trash2, Plus, BarChart3, Settings, Users, LogOut, TrendingUp, Palette, Wifi, WifiOff, Table, LayoutDashboard, UtensilsCrossed, ClipboardList, Boxes, Search } from 'lucide-react';
 import Image from 'next/image';
 import { MenuItem, Table as TableType } from '@/types';
 import SalesReport from '@/components/SalesReport';
@@ -10,6 +10,7 @@ import InventoryDashboard from '@/components/InventoryDashboard';
 import UserManagement from '@/components/UserManagement';
 import OrderManagement from '@/components/OrderManagement';
 import OrderAnalyticsChart from '@/components/OrderAnalyticsChart';
+import AdminOverview from '@/components/AdminOverview';
 
 const AdminControlPanel = () => {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -17,7 +18,9 @@ const AdminControlPanel = () => {
   const [error, setError] = useState<string | null>(null);
   const [draggedItem, setDraggedItem] = useState<MenuItem | null>(null);
   const [isSavingPositions, setIsSavingPositions] = useState(false);
-  const [activeTab, setActiveTab] = useState('menu');
+  const [activeTab, setActiveTab] = useState('overview');
+  const [menuSearch, setMenuSearch] = useState('');
+  const [menuCategoryFilter, setMenuCategoryFilter] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [newItem, setNewItem] = useState<Partial<MenuItem>>({
     name: '',
@@ -149,6 +152,11 @@ const AdminControlPanel = () => {
     checkAuth();
   }, [router]);
 
+  useEffect(() => {
+    if (!isAuthenticated || activeTab !== 'overview') return;
+    fetchSalesData();
+  }, [activeTab, isAuthenticated]);
+
   // Online/offline detection
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -246,7 +254,7 @@ const AdminControlPanel = () => {
 
       if (!response.ok) throw new Error('Failed to reset today\'s sales');
 
-      await fetchTodaysSales();
+      await fetchSalesData();
       
     } catch (err) {
       setError('Failed to reset today\'s sales');
@@ -413,10 +421,10 @@ const AdminControlPanel = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Checking authentication...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-700 mx-auto mb-3" />
+          <p className="text-sm text-zinc-500">Checking access…</p>
         </div>
       </div>
     );
@@ -424,21 +432,26 @@ const AdminControlPanel = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
+      <div className="min-h-screen bg-zinc-50 flex items-center justify-center p-4">
         <div className="text-center">
-          <Settings className="w-12 h-12 mx-auto mb-4 animate-pulse" />
-          <div>Loading Admin Panel...</div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-700 mx-auto mb-3" />
+          <div className="text-sm text-zinc-500">Loading admin panel…</div>
         </div>
       </div>
     );
   }
 
+  const visibleMenuItems = menuItems.filter((item) => {
+    const matchesSearch = item.name.toLowerCase().includes(menuSearch.toLowerCase());
+    const matchesCategory = !menuCategoryFilter || item.category === menuCategoryFilter;
+    return matchesSearch && matchesCategory;
+  });
+
   return (
-    <div className="min-h-screen bg-gray-100">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-red-600 to-red-800 shadow-lg">
-        <div className="max-w-6xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-3 sm:gap-4">
+    <div className={currentTheme === 'dark' ? 'min-h-screen bg-zinc-950 text-zinc-100' : 'min-h-screen bg-zinc-50 text-zinc-900'}>
+      <div className="sticky top-0 z-40">
+      <header className="border-b border-red-800/20 bg-gradient-to-r from-red-700 to-red-900 shadow-sm">
+        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div className="flex items-center gap-2 sm:gap-3">
               <div className="flex-shrink-0">
                 <Image
@@ -449,118 +462,122 @@ const AdminControlPanel = () => {
                   className="rounded-lg sm:w-[55px] sm:h-[55px]"
                 />
               </div>
-              <h1 className="text-lg sm:text-xl md:text-2xl font-bold text-white">Admin Control Panel</h1>
+              <div>
+                <h1 className="text-lg font-semibold text-white sm:text-xl">Admin</h1>
+                <p className="hidden text-xs text-white/70 sm:block">Menu, tables, sales, and staff</p>
+              </div>
             </div>
-            <div className="flex items-center gap-1 sm:gap-2 md:gap-4 flex-wrap justify-center sm:justify-end">
-              {/* Theme Switcher */}
+            <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-wrap justify-center sm:justify-end">
               <button
+                type="button"
                 onClick={toggleTheme}
-                className="p-2 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors touch-manipulation min-h-[44px] min-w-[44px] flex items-center justify-center"
+                className="p-2 bg-white/15 text-white rounded-xl hover:bg-white/25 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
                 title={`Switch to ${currentTheme === 'light' ? 'dark' : 'light'} theme`}
               >
                 <Palette className="w-4 h-4 sm:w-5 sm:h-5" />
               </button>
 
-              {/* Offline Indicator */}
-              <div className={`p-2 rounded-lg flex items-center gap-1 touch-manipulation min-h-[44px] ${
+              <div className={`px-2.5 py-2 rounded-xl flex items-center gap-1.5 min-h-[44px] text-xs font-medium ${
                 isOnline
-                  ? 'bg-green-500/20 text-green-100'
-                  : 'bg-yellow-500/20 text-yellow-100'
+                  ? 'bg-emerald-400/20 text-emerald-50'
+                  : 'bg-amber-400/20 text-amber-50'
               }`}>
                 {isOnline ? (
-                  <Wifi className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <Wifi className="w-4 h-4" />
                 ) : (
-                  <WifiOff className="w-4 h-4 sm:w-5 sm:h-5" />
+                  <WifiOff className="w-4 h-4" />
                 )}
-                <span className="text-xs hidden sm:inline">
+                <span className="hidden sm:inline">
                   {isOnline ? 'Online' : 'Offline'}
                 </span>
               </div>
 
               <a
                 href="/"
-                className="bg-white text-red-600 px-3 py-2 sm:px-4 sm:py-2 rounded-lg hover:bg-gray-100 transition-colors text-sm sm:text-base whitespace-nowrap touch-manipulation min-h-[44px] flex items-center justify-center"
+                className="bg-white text-red-700 px-3 py-2 rounded-xl hover:bg-red-50 transition-colors text-sm font-medium whitespace-nowrap min-h-[44px] flex items-center justify-center"
               >
-                Back to Orders
+                Orders
               </a>
               <button
+                type="button"
                 onClick={handleLogout}
-                className="bg-red-500 text-white px-3 py-2 sm:px-4 sm:py-2 rounded-lg hover:bg-red-600 transition-colors flex items-center gap-1 sm:gap-2 text-sm sm:text-base whitespace-nowrap touch-manipulation min-h-[44px]"
+                className="bg-red-950/40 text-white px-3 py-2 rounded-xl hover:bg-red-950/60 transition-colors flex items-center gap-2 text-sm font-medium whitespace-nowrap min-h-[44px]"
               >
-                <LogOut className="w-4 h-4 sm:w-4 sm:h-4" />
+                <LogOut className="w-4 h-4" />
                 <span className="hidden sm:inline">Logout</span>
               </button>
             </div>
-          </div>
         </div>
-      </div>
+      </header>
 
-      {/* Navigation Tabs */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-6xl mx-auto px-2 sm:px-4">
-          <div className="flex overflow-x-auto space-x-1 py-1 sm:py-0">
+      <nav className={`border-b backdrop-blur-md ${currentTheme === 'dark' ? 'border-zinc-800 bg-zinc-900/90' : 'border-zinc-200 bg-white/90'}`}>
+        <div className="mx-auto max-w-7xl px-2 sm:px-6">
+          <div className="flex overflow-x-auto scrollbar-hide gap-1 py-1.5">
             {[
-              { id: 'menu', label: 'Menu Management', icon: Menu },
-              { id: 'tables', label: 'Table Management', icon: Table },
-              { id: 'orders', label: 'Orders', icon: Package },
-              { id: 'inventory', label: 'Inventory', icon: Package },
+              { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+              { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
+              { id: 'tables', label: 'Tables', icon: Table },
+              { id: 'orders', label: 'Orders', icon: ClipboardList },
+              { id: 'inventory', label: 'Inventory', icon: Boxes },
               { id: 'analytics', label: 'Analytics', icon: TrendingUp },
-              { id: 'reports', label: 'Sales Reports', icon: BarChart3 },
-              { id: 'demand', label: 'Demand Analysis', icon: TrendingUp, href: '/demand-analysis' },
-              // { id: 'settings', label: 'System Settings', icon: Settings },
-              { id: 'users', label: 'User Management', icon: Users }
-
+              { id: 'reports', label: 'Reports', icon: BarChart3 },
+              { id: 'demand', label: 'Demand', icon: TrendingUp, href: '/demand-analysis' },
+              { id: 'users', label: 'Users', icon: Users },
             ].map((tab) => {
               const IconComponent = tab.icon;
-              
+              const className = `px-3 py-2.5 flex items-center gap-2 rounded-xl transition-colors whitespace-nowrap min-h-[44px] text-sm font-medium ${
+                activeTab === tab.id
+                  ? 'bg-zinc-900 text-white shadow-sm'
+                  : 'text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100'
+              }`;
+
               if (tab.href) {
                 return (
-                  <a
-                    key={tab.id}
-                    href={tab.href}
-                    className={`px-4 py-3 flex items-center gap-2 transition-colors whitespace-nowrap touch-manipulation min-h-[48px] ${
-                        activeTab === tab.id
-                          ? 'bg-red-600 text-white'
-                          : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-                    }`}
-                  >
+                  <a key={tab.id} href={tab.href} className={className}>
                     <IconComponent className="w-4 h-4" />
-                    <span className="text-sm">{tab.label}</span>
+                    <span>{tab.label}</span>
                   </a>
                 );
               }
-              
+
               return (
                 <button
                   key={tab.id}
+                  type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`px-4 py-3 flex items-center gap-2 transition-colors whitespace-nowrap touch-manipulation min-h-[48px] ${
-                      activeTab === tab.id
-                        ? 'bg-red-600 text-white'
-                        : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-                  }`}
+                  className={className}
                 >
                   <IconComponent className="w-4 h-4" />
-                  <span className="text-sm">{tab.label}</span>
+                  <span>{tab.label}</span>
                 </button>
               );
             })}
           </div>
         </div>
+      </nav>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-6xl mx-auto px-2 sm:px-3 md:px-4 py-3 sm:py-4 md:py-6">
+      <div className="mx-auto max-w-7xl px-3 sm:px-6 py-5 sm:py-8">
         {error && (
-          <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded">
-            <p>{error}</p>
-            <button 
+          <div className="mb-6 flex items-start justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-800">
+            <p className="text-sm">{error}</p>
+            <button
+              type="button"
               onClick={() => setError(null)}
-              className="mt-2 text-red-600 hover:text-red-800"
+              className="shrink-0 text-sm font-medium text-red-700 hover:underline"
             >
               Dismiss
             </button>
           </div>
+        )}
+
+        {activeTab === 'overview' && (
+          <AdminOverview
+            todaysSales={todaysSales}
+            totalRevenue={totalRevenue}
+            salesLoading={salesLoading}
+            onResetTodaysSales={resetTodaysSales}
+          />
         )}
 
 
@@ -568,11 +585,10 @@ const AdminControlPanel = () => {
         {activeTab === 'menu' && (
           <div className="space-y-6">
             {/* Add/Edit Menu Item Form */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 text-gray-900">
-                {editingItem ? 'Edit Menu Item' : 'Add New Menu Item'}
-              </h2>
-              
+            <div id="admin-menu-form" className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/80 sm:p-6">
+              <h2 className="text-lg font-semibold mb-4 text-zinc-900">
+                {editingItem ? 'Edit menu item' : 'Add menu item'}
+              </h2> 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-800 mb-1">Name</label>
@@ -583,7 +599,7 @@ const AdminControlPanel = () => {
                       ? setEditingItem({ ...editingItem, name: e.target.value })
                       : setNewItem({ ...newItem, name: e.target.value })
                     }
-                    className="w-full p-2 border border-gray-300 rounded text-gray-900"
+                    className="w-full rounded-xl border border-zinc-200 p-2.5 text-zinc-900 outline-none focus:ring-2 focus:ring-red-500/30"
                     placeholder="Item name"
                   />
                 </div>
@@ -593,12 +609,12 @@ const AdminControlPanel = () => {
                   <input
                     type="number"
                     step="0.01"
-                    value={editingItem?.price || newItem.price || 0}
+                    value={editingItem ? editingItem.price : (newItem.price ?? 0)}
                     onChange={(e) => editingItem 
                       ? setEditingItem({ ...editingItem, price: parseFloat(e.target.value) })
                       : setNewItem({ ...newItem, price: parseFloat(e.target.value) })
                     }
-                    className="w-full p-2 border border-gray-300 rounded text-gray-900"
+                    className="w-full rounded-xl border border-zinc-200 p-2.5 text-zinc-900 outline-none focus:ring-2 focus:ring-red-500/30"
                     placeholder="0.00"
                   />
                 </div>
@@ -618,7 +634,7 @@ const AdminControlPanel = () => {
                             : setNewItem({ ...newItem, category: e.target.value });
                         }
                       }}
-                      className="w-full p-2 border border-gray-300 rounded text-gray-900"
+                      className="w-full rounded-xl border border-zinc-200 p-2.5 text-zinc-900 outline-none focus:ring-2 focus:ring-red-500/30"
                     >
                       <option value="">Select Category</option>
                       {availableCategories.map(category => (
@@ -632,7 +648,7 @@ const AdminControlPanel = () => {
                         type="text"
                         value={newCategoryName}
                         onChange={(e) => setNewCategoryName(e.target.value)}
-                        className="w-full p-2 border border-gray-300 rounded text-gray-900"
+                        className="w-full rounded-xl border border-zinc-200 p-2.5 text-zinc-900 outline-none focus:ring-2 focus:ring-red-500/30"
                         placeholder="Enter new category name"
                         autoFocus
                       />
@@ -709,29 +725,64 @@ const AdminControlPanel = () => {
             </div>
 
             {/* Menu Items List with Drag & Drop */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">Menu Items ({menuItems.length})</h2>
-                <div className="flex gap-3">
-                  <button
+            <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/80 sm:p-6">
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-lg font-semibold text-zinc-900">Menu items ({menuItems.length})</h2>
+                <button
                     onClick={saveMenuPositions}
                     disabled={isSavingPositions}
-                    className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center gap-2 touch-manipulation min-h-[48px]"
-                  >
+                    className="px-4 py-2.5 bg-zinc-900 text-white rounded-xl hover:bg-zinc-800 transition-colors disabled:opacity-50 flex items-center justify-center gap-2 min-h-[44px]"
+                >
                     <Save className="w-4 h-4" />
-                    {isSavingPositions ? 'Saving...' : 'Save Positions'}
-                  </button>
+                    {isSavingPositions ? 'Saving…' : 'Save order'}
+                </button>
+              </div>
+
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
+                  <input
+                    type="search"
+                    value={menuSearch}
+                    onChange={(e) => setMenuSearch(e.target.value)}
+                    placeholder="Search dishes…"
+                    className="w-full rounded-xl border border-zinc-200 py-2.5 pl-9 pr-3 text-sm text-zinc-900 outline-none focus:ring-2 focus:ring-red-500/30"
+                  />
                 </div>
               </div>
-
-              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4 rounded">
-                <p className="text-sm text-yellow-800">
-                  💡 Drag and drop items to reorder them. Changes are saved automatically when you click "Save Positions".
-                </p>
+              <div className="mb-4 flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+                <button
+                  type="button"
+                  onClick={() => setMenuCategoryFilter(null)}
+                  className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${
+                    menuCategoryFilter === null ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600'
+                  }`}
+                >
+                  All
+                </button>
+                {availableCategories.map((category) => (
+                  <button
+                    key={category}
+                    type="button"
+                    onClick={() => setMenuCategoryFilter(category)}
+                    className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium ${
+                      menuCategoryFilter === category ? 'bg-zinc-900 text-white' : 'bg-zinc-100 text-zinc-600'
+                    }`}
+                  >
+                    {category}
+                  </button>
+                ))}
               </div>
 
+              <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                Drag items to reorder. Click Save order when the sequence looks right.
+              </p>
+
               <div className="space-y-2">
-                {menuItems.map((item) => (
+                {visibleMenuItems.length === 0 && (
+                  <div className="rounded-xl bg-zinc-50 py-8 text-center text-sm text-zinc-500">No dishes match this filter.</div>
+                )}
+                {visibleMenuItems.map((item) => (
                   <div
                     key={item.id}
                     draggable
@@ -765,19 +816,24 @@ const AdminControlPanel = () => {
                       </span>
 
                       <button
+                        type="button"
                         onClick={() => toggleItemAvailability(item)}
-                        className={`p-3 sm:p-2 rounded min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation ${
+                        className={`px-3 py-2 rounded-xl text-xs font-semibold min-h-[44px] ${
                           item.is_available
-                            ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
-                            : 'bg-green-100 text-green-600 hover:bg-green-200'
+                            ? 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                            : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
                         }`}
                         title={item.is_available ? 'Mark Unavailable' : 'Mark Available'}
                       >
-                        {item.is_available ? '❌' : '✅'}
+                        {item.is_available ? 'Hide' : 'Show'}
                       </button>
 
                       <button
-                        onClick={() => setEditingItem(item)}
+                        type="button"
+                        onClick={() => {
+                          setEditingItem(item);
+                          document.getElementById('admin-menu-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }}
                         className="p-3 sm:p-2 bg-red-100 text-red-600 rounded hover:bg-red-200 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation"
                         title="Edit"
                       >
@@ -800,12 +856,7 @@ const AdminControlPanel = () => {
         )}
 
         {/* Sales Reports Tab */}
-        {activeTab === 'reports' && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-bold mb-4 text-gray-900">Sales Reports</h2>
-            <SalesReport />
-          </div>
-        )}
+        {activeTab === 'reports' && <SalesReport />}
 
         {/* System Settings Tab */}
         {activeTab === 'settings' && (
@@ -821,16 +872,16 @@ const AdminControlPanel = () => {
 
         {/* User Management Tab */}
         {activeTab === 'users' && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl text-gray-800 font-semibold mb-4">User Management</h2>
+          <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/80 sm:p-6">
+            <h2 className="mb-4 text-lg font-semibold text-zinc-900">Users</h2>
             <UserManagement />
           </div>
         )}
 
         {/* Orders Tab */}
         {activeTab === 'orders' && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-bold mb-4 text-gray-900">Order Management</h2>
+          <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/80 sm:p-6">
+            <h2 className="mb-4 text-lg font-semibold text-zinc-900">Orders</h2>
             <OrderManagement />
           </div>
         )}
@@ -842,8 +893,7 @@ const AdminControlPanel = () => {
 
         {/* Analytics Tab */}
         {activeTab === 'analytics' && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-bold mb-4 text-gray-900">Order Analytics</h2>
+          <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/80 sm:p-6">
             <OrderAnalyticsChart />
           </div>
         )}
@@ -852,8 +902,8 @@ const AdminControlPanel = () => {
         {activeTab === 'tables' && (
           <div className="space-y-6">
             {/* Add New Table Form */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-semibold mb-4 text-gray-900">Add New Table</h2>
+            <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/80 sm:p-6">
+              <h2 className="mb-4 text-lg font-semibold text-zinc-900">Add table</h2>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div>
@@ -862,7 +912,7 @@ const AdminControlPanel = () => {
                     type="text"
                     value={newTable.table_code}
                     onChange={(e) => setNewTable({ ...newTable, table_code: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded text-gray-900"
+                    className="w-full rounded-xl border border-zinc-200 p-2.5 text-zinc-900 outline-none focus:ring-2 focus:ring-red-500/30"
                     placeholder="e.g., T01"
                   />
                 </div>
@@ -873,7 +923,7 @@ const AdminControlPanel = () => {
                     type="text"
                     value={newTable.table_name}
                     onChange={(e) => setNewTable({ ...newTable, table_name: e.target.value })}
-                    className="w-full p-2 border border-gray-300 rounded text-gray-900"
+                    className="w-full rounded-xl border border-zinc-200 p-2.5 text-zinc-900 outline-none focus:ring-2 focus:ring-red-500/30"
                     placeholder="e.g., Table 1"
                   />
                 </div>
@@ -885,7 +935,7 @@ const AdminControlPanel = () => {
                     min="1"
                     value={newTable.capacity}
                     onChange={(e) => setNewTable({ ...newTable, capacity: parseInt(e.target.value) || 4 })}
-                    className="w-full p-2 border border-gray-300 rounded text-gray-900"
+                    className="w-full rounded-xl border border-zinc-200 p-2.5 text-zinc-900 outline-none focus:ring-2 focus:ring-red-500/30"
                     placeholder="4"
                   />
                 </div>
@@ -903,18 +953,24 @@ const AdminControlPanel = () => {
             </div>
 
             {/* Tables List */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">Tables ({tables.filter(t => t.is_active).length} active, {tables.length} total)</h2>
+            <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/80 sm:p-6">
+              <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-lg font-semibold text-zinc-900">
+                  Tables · {tables.filter(t => t.is_active).length} active · {tables.filter(t => t.is_occupied).length} occupied
+                </h2>
                 <button
+                  type="button"
                   onClick={fetchTables}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2 touch-manipulation min-h-[44px]"
+                  className="px-4 py-2 bg-zinc-900 text-white rounded-xl hover:bg-zinc-800 text-sm min-h-[44px]"
                 >
                   Refresh
                 </button>
               </div>
 
               <div className="space-y-2">
+                {tables.length === 0 && (
+                  <div className="rounded-xl bg-zinc-50 py-8 text-center text-sm text-zinc-500">No tables yet. Add one above.</div>
+                )}
                 {tables.map((table) => (
                   <div
                     key={table.id}
@@ -934,24 +990,32 @@ const AdminControlPanel = () => {
                     </div>
 
                     <div className="flex items-center gap-2 mt-2 sm:mt-0">
-                      <span className={`px-3 py-2 sm:px-2 sm:py-1 rounded text-xs font-medium ${
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                        table.is_occupied
+                          ? 'bg-amber-100 text-amber-900'
+                          : 'bg-zinc-100 text-zinc-600'
+                      }`}>
+                        {table.is_occupied ? 'Occupied' : 'Free'}
+                      </span>
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
                         table.is_active
-                          ? 'bg-green-100 text-green-800'
+                          ? 'bg-emerald-100 text-emerald-800'
                           : 'bg-red-100 text-red-800'
                       }`}>
                         {table.is_active ? 'Active' : 'Inactive'}
                       </span>
 
                       <button
+                        type="button"
                         onClick={() => toggleTableStatus(table)}
-                        className={`p-3 sm:p-2 rounded min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation ${
+                        className={`px-3 py-2 rounded-xl text-xs font-semibold min-h-[44px] ${
                           table.is_active
-                            ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
-                            : 'bg-green-100 text-green-600 hover:bg-green-200'
+                            ? 'bg-amber-50 text-amber-800 hover:bg-amber-100'
+                            : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
                         }`}
                         title={table.is_active ? 'Deactivate Table' : 'Activate Table'}
                       >
-                        {table.is_active ? '❌' : '✅'}
+                        {table.is_active ? 'Deactivate' : 'Activate'}
                       </button>
 
                       <button

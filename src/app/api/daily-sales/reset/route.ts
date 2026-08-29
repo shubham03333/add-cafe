@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { getTodayDateString, getYesterdayDateString } from '@/lib/timezone-dynamic';
+import { getSqlDayRange } from '@/lib/date-range';
+import { cache, CACHE_KEYS } from '@/lib/cache';
 
 export async function POST(request: Request) {
   try {
@@ -24,6 +26,8 @@ export async function POST(request: Request) {
       `, [todayIST]);
 
       console.log(`✅ Today's sales reset to 0 for ${todayIST}`);
+      cache.delete(CACHE_KEYS.TODAY_SALES);
+      cache.delete(CACHE_KEYS.TOTAL_REVENUE);
 
       return NextResponse.json({ 
         success: true, 
@@ -37,6 +41,7 @@ export async function POST(request: Request) {
     } else {
       // Archive yesterday's sales (automatic end-of-day process)
       const yesterdayIST = await getYesterdayDateString();
+      const { start, end } = getSqlDayRange(yesterdayIST);
       
       console.log(`🔄 Manual daily sales archive initiated for: ${yesterdayIST}`);
 
@@ -46,9 +51,9 @@ export async function POST(request: Request) {
           COUNT(*) as total_orders,
           SUM(total) as total_revenue
         FROM orders 
-        WHERE DATE(order_time) = ? 
+        WHERE order_time >= ? AND order_time < ?
           AND status = 'served'
-      `, [yesterdayIST]) as any[];
+      `, [start, end]) as any[];
 
       const totalOrders = yesterdaySales?.[0]?.total_orders || 0;
       const totalRevenue = yesterdaySales?.[0]?.total_revenue || 0;

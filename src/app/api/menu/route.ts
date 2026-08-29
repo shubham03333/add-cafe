@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { cache, CACHE_KEYS, CACHE_TTL } from '@/lib/cache';
-import { db } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,7 +8,6 @@ export async function GET(request: NextRequest) {
     const category = searchParams.get('category');
     const availableOnly = searchParams.get('availableOnly') === 'true';
 
-    // Generate cache key based on parameters
     let cacheKey = CACHE_KEYS.MENU_ITEMS;
     if (category) {
       cacheKey = CACHE_KEYS.MENU_ITEMS_BY_CATEGORY(category);
@@ -18,11 +16,10 @@ export async function GET(request: NextRequest) {
       cacheKey += '_available';
     }
 
-    // Try to get from cache first
     let menuItems = cache.get(cacheKey);
     if (!menuItems) {
-      // Build query based on parameters
-      let query = 'SELECT * FROM menu_items WHERE 1=1';
+      let query = `SELECT id, name, price, is_available, category, position, stock_quantity, unit_type
+                   FROM menu_items WHERE 1=1`;
       const params: any[] = [];
 
       if (category) {
@@ -36,12 +33,15 @@ export async function GET(request: NextRequest) {
 
       query += ' ORDER BY position ASC';
 
-      // Execute query and cache result
       menuItems = await executeQuery(query, params);
-      cache.set(cacheKey, menuItems, CACHE_TTL.MENU_ITEMS * 1000); // Convert to milliseconds
+      cache.set(cacheKey, menuItems, CACHE_TTL.MENU_ITEMS);
     }
 
-    return NextResponse.json(menuItems);
+    return NextResponse.json(menuItems, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=15, stale-while-revalidate=60',
+      },
+    });
   } catch (error) {
     console.error('Error fetching menu items:', error);
     return NextResponse.json(
@@ -56,7 +56,6 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { name, price, category, is_available = true } = body;
 
-    // Validate required fields
     if (!name || !name.trim() || price == null || price <= 0 || !category || !category.trim()) {
       return NextResponse.json(
         { error: 'Name, price (must be greater than 0), and category are required' },
@@ -64,22 +63,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get the next position
     const positionQuery = 'SELECT COALESCE(MAX(position), 0) + 1 as next_position FROM menu_items';
     const positionResult = await executeQuery(positionQuery) as any[];
     const nextPosition = positionResult[0].next_position;
 
-    // Insert new menu item
     const insertQuery = `
       INSERT INTO menu_items (name, price, category, is_available, position, created_at)
       VALUES (?, ?, ?, ?, ?, NOW())
     `;
-    const insertParams = [name, price, category, is_available, nextPosition];
+    const result = await executeQuery(insertQuery, [name, price, category, is_available, nextPosition]) as any;
 
-    const result = await executeQuery(insertQuery, insertParams) as any;
-
-    // Clear cache after adding new item
-    cache.clear();
+    cache.deleteByPrefix('menu_items');
 
     return NextResponse.json(
       {

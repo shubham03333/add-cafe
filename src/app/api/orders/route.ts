@@ -1,141 +1,103 @@
-
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
-import { CreateOrderRequest, Order } from '@/types';
+import { CreateOrderRequest } from '@/types';
+import { getTodayDateString } from '@/lib/timezone-dynamic';
+import { getSqlDayRange } from '@/lib/date-range';
+import { mapOrderRow, ORDER_LIST_COLUMNS } from '@/lib/order-utils';
+import { cache, CACHE_KEYS } from '@/lib/cache';
 
-// GET orders with pagination (default) or all orders if explicitly requested
+const VALID_STATUSES = ['pending', 'preparing', 'ready', 'served', 'cancelled'];
+
+function buildStatusFilter(statusFilter: string, includeServed: boolean) {
+  const whereClauses: string[] = [];
+  const params: any[] = [];
+
+  if (statusFilter) {
+    const statuses = statusFilter.split(',').map(s => s.trim()).filter(s => VALID_STATUSES.includes(s));
+    if (statuses.length > 0) {
+      whereClauses.push(`o.status IN (${statuses.map(() => '?').join(',')})`);
+      params.push(...statuses);
+    }
+  } else if (!includeServed) {
+    whereClauses.push("o.status != 'served'");
+  }
+
+  return { whereClauses, params };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get('status') || '';
     const includeServed = searchParams.get('includeServed') === 'true';
-    const loadAll = searchParams.get('loadAll') === 'true'; // Explicit flag to load all orders
-    const tableId = searchParams.get('table_id'); // Add table_id filter
+    const loadAll = searchParams.get('loadAll') === 'true';
+    const tableId = searchParams.get('table_id');
+    const orderNumber = searchParams.get('order_number');
+    const paginated = searchParams.has('page') || searchParams.get('paginated') === 'true';
 
-    // If loadAll is true, use the old behavior (for backward compatibility)
-    if (loadAll) {
-      let query = 'SELECT * FROM orders';
-      let whereClauses = [];
-
-      if (!includeServed) {
-          whereClauses.push("status != 'served'");
-      }
-
-      const validStatuses = ['pending', 'preparing', 'ready', 'served', 'cancelled'];
-      if (statusFilter) {
-          const statuses = statusFilter.split(',').filter(status => validStatuses.includes(status.trim()));
-          if (statuses.length > 0) {
-              whereClauses.push(`status IN ('${statuses.join("', '")}')`);
-          }
-      }
-
-      if (tableId) {
-          whereClauses.push(`table_id = '${tableId}'`);
-      }
-
-      if (whereClauses.length > 0) {
-          query += ' WHERE ' + whereClauses.join(' AND ');
-      }
-      query += ' ORDER BY order_time ASC LIMIT 1000'; // Add reasonable limit even for loadAll
-
-      const rows = await executeQuery(query) as any[];
-      console.log(`[ORDERS API] Fetching ALL orders - includeServed: ${includeServed}, statusFilter: ${statusFilter}, tableId: ${tableId}`);
-      console.log(`[ORDERS API] Found ${rows.length} orders`);
-
-      const orders = rows.map(row => {
-        let itemsData = row.items;
-        if (typeof row.items === 'string') {
-          try {
-            itemsData = JSON.parse(row.items);
-          } catch (parseError) {
-            console.warn('Failed to parse items JSON:', row.items);
-            itemsData = [];
-          }
-        }
-        return { ...row, items: itemsData };
-      });
-
-      return NextResponse.json(orders);
-    }
-
-    // Default: Use pagination
-    const page = Math.max(1, parseInt(searchParams.get('page') || '1'));
-    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50'))); // Max 100 per page
-    const offset = (page - 1) * limit;
-
-    let whereClauses = [];
-    const params: any[] = [];
-
-    if (!includeServed) {
-        whereClauses.push("status != 'served'");
-    }
-
-    const validStatuses = ['pending', 'preparing', 'ready', 'served', 'cancelled'];
-    if (statusFilter) {
-        const statuses = statusFilter.split(',').filter(status => validStatuses.includes(status.trim()));
-        if (statuses.length > 0) {
-            whereClauses.push(`status IN ('${statuses.join("', '")}')`);
-            // Note: Using string interpolation for IN clause as prepared statements don't support dynamic IN lists well
-        }
-    }
+    const { whereClauses, params } = buildStatusFilter(statusFilter, includeServed);
 
     if (tableId) {
-        whereClauses.push(`table_id = '${tableId}'`);
+      whereClauses.push('o.table_id = ?');
+      params.push(tableId);
     }
 
-    let whereClause = whereClauses.length > 0 ? ' WHERE ' + whereClauses.join(' AND ') : '';
+    if (orderNumber) {
+      whereClauses.push('o.order_number = ?');
+      params.push(orderNumber);
+      const today = await getTodayDateString();
+      const { start, end } = getSqlDayRange(today);
+      whereClauses.push('o.order_time >= ? AND o.order_time < ?');
+      params.push(start, end);
+    }
 
-    // Get total count
-    const countQuery = `SELECT COUNT(*) as total FROM orders${whereClause}`;
-    const countResult = await executeQuery(countQuery) as any[];
-    const totalOrders = countResult[0]?.total || 0;
-    const totalPages = Math.ceil(totalOrders / limit);
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
-    // Get paginated orders
-    const ordersQuery = `
-      SELECT o.id, o.order_number, o.items, o.total, o.status, o.payment_status, o.payment_mode, o.order_time, o.order_type, o.table_id,
-             t.table_code, t.table_name
+    const selectSql = `
+      SELECT ${ORDER_LIST_COLUMNS}, t.table_code, t.table_name
       FROM orders o
       LEFT JOIN tables_master t ON o.table_id = t.id
-      ${whereClause.replace('WHERE', 'WHERE o.').replace('orders', 'o')}
-      ORDER BY o.order_time DESC
-      LIMIT ${limit} OFFSET ${offset}
+      ${whereSql}
     `;
 
-    const rows = await executeQuery(ordersQuery) as any[];
-    console.log(`[ORDERS API] Fetching paginated orders - page: ${page}, limit: ${limit}, statusFilter: ${statusFilter}, tableId: ${tableId}`);
-    console.log(`[ORDERS API] Found ${rows.length} orders (total: ${totalOrders})`);
+    if (paginated && !orderNumber) {
+      const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+      const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
+      const offset = (page - 1) * limit;
 
-    const orders = rows.map(row => {
-      let itemsData = row.items;
-      if (typeof row.items === 'string') {
-        try {
-          itemsData = JSON.parse(row.items);
-        } catch (parseError) {
-          console.warn('Failed to parse items JSON:', row.items);
-          itemsData = [];
+      const countQuery = `SELECT COUNT(*) as total FROM orders o ${whereSql}`;
+      const [countResult, rows] = await Promise.all([
+        executeQuery(countQuery, params) as Promise<any[]>,
+        executeQuery(
+          `${selectSql} ORDER BY o.order_time DESC LIMIT ? OFFSET ?`,
+          [...params, limit, offset]
+        ) as Promise<any[]>,
+      ]);
+
+      const totalOrders = countResult[0]?.total || 0;
+      const totalPages = Math.ceil(totalOrders / limit);
+
+      return NextResponse.json({
+        orders: (rows || []).map(mapOrderRow),
+        pagination: {
+          currentPage: page,
+          totalPages,
+          totalOrders,
+          limit,
+          hasNextPage: page < totalPages,
+          hasPrevPage: page > 1
         }
-      }
-      return {
-        ...row,
-        items: itemsData,
-        payment_status: row.payment_status || 'pending',
-        payment_mode: row.payment_mode || null
-      };
-    });
+      });
+    }
 
-    return NextResponse.json({
-      orders,
-      pagination: {
-        currentPage: page,
-        totalPages,
-        totalOrders,
-        limit,
-        hasNextPage: page < totalPages,
-        hasPrevPage: page > 1
-      }
-    });
+    const limit = loadAll ? 1000 : 200;
+    const rows = await executeQuery(
+      `${selectSql} ORDER BY o.order_time ${loadAll ? 'ASC' : 'DESC'} LIMIT ?`,
+      [...params, limit]
+    ) as any[];
+
+    return NextResponse.json((rows || []).map(mapOrderRow));
   } catch (error) {
     console.error('Error fetching orders:', error);
     return NextResponse.json(
@@ -148,11 +110,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body: CreateOrderRequest = await request.json();
-    const orderId = uuidv4(); // Generate unique order ID
-    const currentDate = new Date();
-    const today = currentDate.toISOString().split('T')[0]; // Get today's date in YYYY-MM-DD format
+    const orderId = uuidv4();
+    const today = await getTodayDateString();
+    const { start, end } = getSqlDayRange(today);
 
-    // Validate order_type
     const validOrderTypes = ['DINE_IN', 'TAKEAWAY', 'DELIVERY'];
     if (!body.order_type || !validOrderTypes.includes(body.order_type)) {
       return NextResponse.json(
@@ -161,7 +122,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate table_id for DINE_IN orders
     let tableId = null;
     if (body.order_type === 'DINE_IN') {
       if (!body.table_id) {
@@ -171,9 +131,8 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Check if table exists and is active, and get the integer id
       const tableCheck = await executeQuery(
-        'SELECT id FROM tables_master WHERE table_code = ? AND is_active = 1',
+        'SELECT id FROM tables_master WHERE table_code = ? AND is_active = 1 LIMIT 1',
         [body.table_id]
       ) as any[];
 
@@ -184,23 +143,26 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Use the integer id from the database
       tableId = tableCheck[0].id;
     }
 
-    // Fetch the last order number for today (cast to integer for proper numerical MAX)
-    const lastOrderQuery = 'SELECT MAX(CAST(order_number AS UNSIGNED)) AS last_order_number FROM orders WHERE DATE(order_time) = ?';
-    const lastOrderResult: any[] = await executeQuery(lastOrderQuery, [today]) as any[];
-    const lastOrderNumber = lastOrderResult[0]?.last_order_number || 0; // Default to 0 if no orders exist
-
-    // Increment the order number and pad to 3 digits
+    const lastOrderResult = await executeQuery(
+      `SELECT MAX(CAST(order_number AS UNSIGNED)) AS last_order_number
+       FROM orders
+       WHERE order_time >= ? AND order_time < ?`,
+      [start, end]
+    ) as any[];
+    const lastOrderNumber = lastOrderResult[0]?.last_order_number || 0;
     const newOrderNumber = (lastOrderNumber + 1).toString().padStart(3, '0');
 
-    // Set initial status to 'preparing' and payment status to 'pending'
     await executeQuery(
       'INSERT INTO orders (id, order_number, items, total, status, payment_status, order_type, table_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [orderId, newOrderNumber, JSON.stringify(body.items), body.total, 'preparing', 'pending', body.order_type, tableId]
     );
+
+    cache.delete(CACHE_KEYS.TODAY_SALES);
+    cache.delete(CACHE_KEYS.TOTAL_REVENUE);
+    cache.delete('tables_occupancy');
 
     return NextResponse.json({ id: orderId, success: true, order_number: newOrderNumber });
   } catch (error) {

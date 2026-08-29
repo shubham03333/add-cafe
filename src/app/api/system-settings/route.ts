@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
+import { cache, CACHE_KEYS } from '@/lib/cache';
 
 // GET - Fetch all system settings
 export async function GET() {
@@ -7,7 +8,7 @@ export async function GET() {
     return NextResponse.json({ error: 'Database not configured' }, { status: 500 });
   }
   try {
-    const [settings] = await db.execute('SELECT * FROM system_settings');
+    const [settings] = await db.query('SELECT * FROM system_settings');
     return NextResponse.json(settings);
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 });
@@ -23,7 +24,9 @@ export async function PUT(request: NextRequest) {
     const body = await request.json();
     const { setting_name, setting_value } = body;
     
-    await db.execute('UPDATE system_settings SET setting_value = ? WHERE setting_name = ?', [setting_value, setting_name]);
+    await db.query('UPDATE system_settings SET setting_value = ? WHERE setting_name = ?', [setting_value, setting_name]);
+    cache.delete(CACHE_KEYS.TIMEZONE);
+    cache.delete(CACHE_KEYS.SYSTEM_SETTINGS);
     return NextResponse.json({ setting_name, setting_value });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });

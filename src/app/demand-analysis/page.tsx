@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { TrendingUp, TrendingDown, BarChart3, ArrowLeft } from 'lucide-react';
-import { Order, OrderItem } from '@/types';
 import Link from 'next/link';
 
 interface DishDemand {
@@ -30,50 +29,27 @@ const DemandAnalysisPage: React.FC = () => {
     try {
       setLoading(true);
       // Fetch all orders including served ones
-      const response = await fetch('/api/orders?includeServed=true&loadAll=true');
+      const response = await fetch('/api/orders/demand?days=30');
       if (!response.ok) throw new Error('Failed to fetch orders');
 
-      const orders: Order[] = await response.json();
-      
-      // Aggregate dish quantities and revenue
-      const dishDataMap = new Map<number, { name: string; quantity: number; revenue: number }>();
-      
-      orders.forEach(order => {
-        order.items.forEach((item: OrderItem) => {
-          const existing = dishDataMap.get(item.id);
-          if (existing) {
-            dishDataMap.set(item.id, {
-              name: item.name,
-              quantity: existing.quantity + item.quantity,
-              revenue: existing.revenue + (item.price * item.quantity)
-            });
-          } else {
-            dishDataMap.set(item.id, {
-              name: item.name,
-              quantity: item.quantity,
-              revenue: item.price * item.quantity
-            });
-          }
-        });
-      });
-      
-      // Convert to array and calculate demand levels using custom thresholds
-      const demands: DishDemand[] = Array.from(dishDataMap.entries()).map(([dishId, data]) => {
+      const demandsRaw = await response.json();
+
+      const demands: DishDemand[] = (demandsRaw || []).map((data: any) => {
         let demandLevel: 'high' | 'medium' | 'low';
-        
-        if (data.quantity >= thresholds.high) {
+
+        if (data.totalQuantity >= thresholds.high) {
           demandLevel = 'high';
-        } else if (data.quantity >= thresholds.medium) {
+        } else if (data.totalQuantity >= thresholds.medium) {
           demandLevel = 'medium';
         } else {
           demandLevel = 'low';
         }
-        
+
         return {
-          dishId,
-          dishName: data.name,
-          totalQuantity: data.quantity,
-          totalRevenue: data.revenue,
+          dishId: data.dishId,
+          dishName: data.dishName,
+          totalQuantity: data.totalQuantity,
+          totalRevenue: data.totalRevenue,
           demandLevel
         };
       });

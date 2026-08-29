@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from '@/lib/db';
-import { cache } from '@/lib/cache';
+import { db, executeQuery } from '@/lib/db';
+import { cache, CACHE_TTL } from '@/lib/cache';
+import { adjustMenuStock } from '@/lib/stock';
+
+const INVENTORY_CACHE_KEY = 'inventory_full_data';
 
 // GET /api/inventory - Get all inventory items with stock information
 export async function GET(request: NextRequest) {
@@ -10,14 +13,11 @@ export async function GET(request: NextRequest) {
     }
 
     // Try to get from cache first
-    const cacheKey = 'inventory_full_data';
+    const cacheKey = INVENTORY_CACHE_KEY;
     let inventoryData = cache.get(cacheKey);
 
     if (!inventoryData) {
-      const connection = await db.getConnection();
-
-      // Get all menu items with inventory data and raw materials
-      const [items] = await connection.execute(`
+      inventoryData = await executeQuery(`
         SELECT
           mi.id, mi.name, mi.price, mi.is_available, mi.category, mi.position,
           mi.stock_quantity, mi.low_stock_threshold, mi.unit_type,
@@ -44,11 +44,7 @@ export async function GET(request: NextRequest) {
         ORDER BY mi.category, mi.position
       `);
 
-      connection.release();
-
-      inventoryData = items;
-      // Cache for 5 minutes (inventory changes less frequently)
-      cache.set(cacheKey, inventoryData, 5 * 60 * 1000);
+      cache.set(cacheKey, inventoryData, CACHE_TTL.INVENTORY);
     }
 
     return NextResponse.json(inventoryData);
@@ -98,7 +94,7 @@ export async function POST(request: NextRequest) {
       await connection.commit();
 
       // Clear cache
-      cache.delete('inventory_full_data');
+      cache.delete(INVENTORY_CACHE_KEY);
 
       return NextResponse.json({ success: true });
     } catch (error) {
@@ -132,42 +128,9 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const connection = await db.getConnection();
+    await adjustMenuStock(adjustments);
 
-    try {
-      await connection.beginTransaction();
-
-      for (const adjustment of adjustments) {
-        const { id, quantity, action } = adjustment;
-
-        if (!id || !quantity || !action) {
-          throw new Error('Each adjustment must have id, quantity, and action');
-        }
-
-        if (!['add', 'subtract'].includes(action)) {
-          throw new Error('Action must be either "add" or "subtract"');
-        }
-
-        const adjustmentValue = action === 'add' ? quantity : -quantity;
-
-        await connection.execute(
-          'UPDATE menu_items SET stock_quantity = GREATEST(0, stock_quantity + ?), last_restocked = NOW() WHERE id = ?',
-          [adjustmentValue, id]
-        );
-      }
-
-      await connection.commit();
-
-      // Clear cache
-      cache.delete('inventory_full_data');
-
-      return NextResponse.json({ success: true });
-    } catch (error) {
-      await connection.rollback();
-      throw error;
-    } finally {
-      connection.release();
-    }
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error adjusting inventory:', error);
     return NextResponse.json(

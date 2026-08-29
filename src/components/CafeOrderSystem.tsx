@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
-import { Clock, ChefHat, Edit2, Trash2, X, Save, BarChart3, History, Wifi, WifiOff, ArrowLeft, Menu, Users, Package } from 'lucide-react';
+import { Clock, ChefHat, Edit2, Trash2, X, Save, BarChart3, History, Wifi, WifiOff, ArrowLeft, Menu, Users, Package, Search } from 'lucide-react';
 import { Order, MenuItem, OrderItem, CreateOrderRequest, UpdateOrderRequest, Table, LocalOrder, SyncQueueItem } from '@/types';
 import { useOfflineStatus } from '@/hooks/useOfflineStatus';
 import { indexedDBManager } from '@/lib/indexeddb';
@@ -69,6 +68,8 @@ const CafeOrderSystem = () => {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'all' | 'favorites'>('all');
   const [favorites, setFavorites] = useState<number[]>([]);
+  const [favoritesReady, setFavoritesReady] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Edit order modal search state
   const [editOrderSearchTerm, setEditOrderSearchTerm] = useState('');
@@ -129,6 +130,40 @@ const CafeOrderSystem = () => {
     setCurrentStep('menu');
   };
 
+  const formatINR = (value: number | string | null | undefined) =>
+    `₹${Number(value || 0).toLocaleString('en-IN')}`;
+
+  const popularNameSet = React.useMemo(
+    () => new Set(popularItems.slice(0, 8).map((item) => item.name.toLowerCase())),
+    [popularItems]
+  );
+
+  const filteredMenuItems = React.useMemo(() => {
+    const query = searchTerm.toLowerCase();
+    return menuItems.filter((item) => {
+      const matchesSearch = item.name.toLowerCase().includes(query);
+      const matchesCategory = selectedCategory === null || item.category === selectedCategory;
+      const matchesViewMode = viewMode === 'all' || favorites.includes(item.id);
+      return matchesSearch && matchesCategory && matchesViewMode;
+    });
+  }, [menuItems, searchTerm, selectedCategory, viewMode, favorites]);
+
+  const buildingQtyById = React.useMemo(() => {
+    const map = new Map<number, number>();
+    buildingOrder.forEach((item) => map.set(item.id, item.quantity));
+    return map;
+  }, [buildingOrder]);
+
+  const buildingTotal = buildingOrder.reduce((sum, item) => sum + item.price * item.quantity, 0);
+
+  const retryDashboardLoad = () => {
+    setError(null);
+    setLoading(true);
+    Promise.all([fetchMenu(), fetchOrders(), fetchTables(), fetchDailySales()]).finally(() => {
+      setLoading(false);
+    });
+  };
+
   const closeOrderPopup = () => {
     setViewingOrder(null);
   };
@@ -146,15 +181,19 @@ const CafeOrderSystem = () => {
     fetchOrders();
     fetchTables();
     fetchPopularItems();
+    fetchDailySales();
 
-    // Set up polling for real-time updates with longer intervals to reduce memory usage
     const ordersPollingInterval = setInterval(() => {
       fetchOrders();
-    }, 5000); // Poll orders every 5 seconds (increased from 3)
+    }, 5000);
+
+    const salesPollingInterval = setInterval(() => {
+      fetchDailySales();
+    }, 15000);
 
     const menuPollingInterval = setInterval(() => {
-      fetchMenu(); // Refresh menu items to reflect availability changes from admin
-    }, 30000); // Poll menu every 30 seconds (reduced frequency)
+      fetchMenu();
+    }, 30000);
 
     // Listen for order update events (e.g., payment status changes)
     const handleOrderUpdate = () => {
@@ -181,6 +220,7 @@ const CafeOrderSystem = () => {
     // Clean up intervals and event listener on component unmount
     return () => {
       clearInterval(ordersPollingInterval);
+      clearInterval(salesPollingInterval);
       clearInterval(menuPollingInterval);
       if (memoryCheckInterval) {
         clearInterval(memoryCheckInterval);
@@ -188,6 +228,91 @@ const CafeOrderSystem = () => {
       window.removeEventListener('orderUpdated', handleOrderUpdate);
     };
   }, []);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('adda-menu-favorites');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          setFavorites(parsed.filter((id: unknown) => typeof id === 'number'));
+        }
+      }
+    } catch {
+      // ignore corrupt favorites
+    }
+    setFavoritesReady(true);
+  }, []);
+
+  useEffect(() => {
+    if (!favoritesReady) return;
+    localStorage.setItem('adda-menu-favorites', JSON.stringify(favorites));
+  }, [favorites, favoritesReady]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        if (isPaymentModeModalOpen) {
+          closePaymentModeModal();
+          return;
+        }
+        if (isConfirmModalOpen) {
+          closeConfirmModal();
+          return;
+        }
+        if (viewingOrder) {
+          closeOrderPopup();
+          return;
+        }
+        if (editingOrder) {
+          cancelEdit();
+          return;
+        }
+        if (isReportModalOpen) {
+          closeReportModal();
+          return;
+        }
+        if (isServedOrdersModalOpen) {
+          closeServedOrdersModal();
+          return;
+        }
+        if (isPaymentRevenueModalOpen) {
+          closePaymentRevenueModal();
+          return;
+        }
+        if (pendingSidebarOpen) {
+          setPendingSidebarOpen(false);
+          return;
+        }
+        if (sidebarOpen) {
+          setSidebarOpen(false);
+        }
+        return;
+      }
+
+      if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey) {
+        const target = event.target as HTMLElement | null;
+        if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+          return;
+        }
+        event.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [
+    isPaymentModeModalOpen,
+    isConfirmModalOpen,
+    viewingOrder,
+    editingOrder,
+    isReportModalOpen,
+    isServedOrdersModalOpen,
+    isPaymentRevenueModalOpen,
+    pendingSidebarOpen,
+    sidebarOpen,
+  ]);
 
   const fetchMenu = async () => {
     try {
@@ -259,9 +384,6 @@ const CafeOrderSystem = () => {
     // Calculate pending orders count (orders that are not served)
     const pendingOrders = ordersArray.filter((order: Order) => order.status !== 'served');
     setPendingOrdersCount(pendingOrders.length);
-
-    // Fetch daily sales from API instead of calculating locally
-    await fetchDailySales();
 
     setLoading(false);
 
@@ -633,7 +755,7 @@ const CafeOrderSystem = () => {
   const fetchServedOrders = async () => {
     setLoadingServedOrders(true);
     try {
-      const response = await fetch('/api/orders?includeServed=true');
+      const response = await fetch('/api/orders?status=served');
       if (!response.ok) throw new Error('Failed to fetch served orders');
       const data = await response.json();
       // Handle paginated response structure
@@ -890,13 +1012,14 @@ const CafeOrderSystem = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-center text-red-600">
-          <div className="text-xl font-bold mb-2">Error</div>
-          <div>{error}</div>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded w-full sm:w-auto"
+      <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+        <div className="text-center text-red-600 max-w-sm">
+          <div className="text-xl font-bold mb-2">Could not load the dashboard</div>
+          <div className="text-sm text-gray-600 mb-4">{error}</div>
+          <button
+            type="button"
+            onClick={retryDashboardLoad}
+            className="mt-2 px-4 py-2 bg-red-600 text-white rounded-lg w-full sm:w-auto min-h-[44px]"
           >
             Retry
           </button>
@@ -907,68 +1030,77 @@ const CafeOrderSystem = () => {
 
   return (
     <div
-      className="min-h-screen bg-gray-100 p-0.5 sm:p-1 md:p-2 lg:p-4 xl:p-6 w-full max-w-full mx-auto transition-all duration-300 overflow-x-hidden"
+      className={`min-h-screen bg-gray-100 p-0.5 sm:p-1 md:p-2 lg:p-4 xl:p-6 w-full max-w-full mx-auto transition-all duration-300 overflow-x-hidden ${buildingOrder.length > 0 ? 'pb-28 md:pb-6' : ''}`}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
+      {isOffline && (
+        <div className="mb-2 flex items-center justify-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-medium text-amber-900" role="status">
+          <WifiOff className="h-4 w-4" aria-hidden="true" />
+          You are offline. New orders will sync when the connection returns.
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-red-600 to-red-800 rounded-lg shadow-lg p-2 sm:p-3 md:p-4 mb-2 sm:mb-3 md:mb-4 transition-all duration-300">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-3 md:gap-4">
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <img src="/logo.png" alt="Logo" className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20" />
           </div>
           <div className="flex items-center gap-0.5 flex-wrap justify-center max-w-full overflow-x-auto px-1">
-            {/* Sidebar Toggle */}
             <button
+              type="button"
               onClick={() => setSidebarOpen(true)}
-              className="p-1.5 sm:p-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors shadow-md min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center flex-shrink-0"
+              className="p-1.5 sm:p-2.5 bg-white/20 hover:bg-white/30 text-white rounded-xl transition-colors shadow-md min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
               title="Table Management"
+              aria-label="Open table management"
             >
               <Menu className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
-            {/* Takeaway Button */}
-            {/* <button
-              onClick={() => {
-                setSelectedOrderType('TAKEAWAY');
-                setSelectedTable(null);
-                setBuildingOrder([]);
-              }}
-              className="p-1.5 sm:p-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl transition-colors shadow-md min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center flex-shrink-0"
-              title="Takeaway Order"
-            >
-              <Package className="w-4 h-4 sm:w-5 sm:h-5" />
-            </button> */}
             <a
               href="/chef"
-              className="p-1.5 sm:p-2.5 bg-white text-red-600 rounded-lg text-xs sm:text-sm hover:bg-gray-100 transition-colors shadow-md flex items-center justify-center min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex-shrink-0"
+              className="p-1.5 sm:p-2.5 bg-white text-red-600 rounded-lg text-xs sm:text-sm hover:bg-gray-100 transition-colors shadow-md flex items-center justify-center min-h-[44px] min-w-[44px] flex-shrink-0"
               title="Chef Dashboard"
+              aria-label="Open chef dashboard"
             >
-              <span className="text-sm sm:text-base">👨‍🍳</span>
+              <ChefHat className="w-4 h-4 sm:w-5 sm:h-5" />
             </a>
-            <div
-              className="bg-white/20 backdrop-blur-sm rounded-lg p-1.5 sm:p-2.5 min-w-[50px] sm:min-w-[64px] cursor-pointer hover:bg-white/30 transition-colors min-h-[40px] sm:min-h-[44px] flex flex-col items-center justify-center flex-shrink-0"
+            <button
+              type="button"
+              className="bg-white/20 backdrop-blur-sm rounded-lg p-1.5 sm:p-2.5 min-w-[50px] sm:min-w-[64px] cursor-pointer hover:bg-white/30 transition-colors min-h-[44px] flex flex-col items-center justify-center flex-shrink-0"
               onClick={() => setPendingSidebarOpen(true)}
               title="Click to view pending orders"
+              aria-label={`View ${pendingOrdersCount} pending orders`}
             >
               <div className="text-[10px] sm:text-xs text-white/90">Pending</div>
               <div className="text-sm sm:text-lg font-bold text-white">{pendingOrdersCount}</div>
-            </div>
-            <div className="bg-white/20 backdrop-blur-sm rounded-lg p-1.5 sm:p-2.5 min-w-[50px] sm:min-w-[64px] cursor-pointer min-h-[40px] sm:min-h-[44px] flex flex-col items-center justify-center flex-shrink-0" onClick={openPaymentRevenueModal}>
-              <div className="text-[10px] sm:text-xs text-white/90">Sales</div>
-              <div className="text-sm sm:text-lg font-bold text-white">₹{dailySales}</div>
-            </div>
+            </button>
             <button
+              type="button"
+              className="bg-white/20 backdrop-blur-sm rounded-lg p-1.5 sm:p-2.5 min-w-[50px] sm:min-w-[64px] cursor-pointer hover:bg-white/30 min-h-[44px] flex flex-col items-center justify-center flex-shrink-0"
+              onClick={openPaymentRevenueModal}
+              title="Today's sales"
+              aria-label={`Today's sales ${formatINR(dailySales)}`}
+            >
+              <div className="text-[10px] sm:text-xs text-white/90">Sales</div>
+              <div className="text-sm sm:text-lg font-bold text-white">{formatINR(dailySales)}</div>
+            </button>
+            <button
+              type="button"
               onClick={openServedOrdersModal}
-              className="p-1.5 sm:p-2.5 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center flex-shrink-0"
+              className="p-1.5 sm:p-2.5 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
               title="Served Orders History"
+              aria-label="Served orders history"
             >
               <History className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
             <button
+              type="button"
               onClick={openReportModal}
-              className="p-1.5 sm:p-2.5 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md min-h-[40px] min-w-[40px] sm:min-h-[44px] sm:min-w-[44px] flex items-center justify-center flex-shrink-0"
+              className="p-1.5 sm:p-2.5 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
               title="Sales Report"
+              aria-label="Open sales report"
             >
               <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
@@ -980,32 +1112,60 @@ const CafeOrderSystem = () => {
 
       {/* Search and Filter Controls */}
       <div className="bg-white rounded-lg shadow-lg p-2 sm:p-4 mb-2 sm:mb-4">
-        {/* <h2 className="font-semibold text-gray-800 text-lg mb-4">Search & Filter</h2> */}
         <div className="space-y-3">
-          {/* Search Bar and Favorites */}
+          <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
+            <span className="text-gray-600">
+              {selectedTable
+                ? `Dine-in · ${selectedTable.table_name || selectedTable.table_code}`
+                : 'Takeaway'}
+            </span>
+            {selectedTable && (
+              <button
+                type="button"
+                onClick={handleTakeawaySelect}
+                className="text-red-700 font-medium hover:underline min-h-[32px]"
+              >
+                Switch to takeaway
+              </button>
+            )}
+          </div>
           <div className="flex gap-2">
             <div className="relative flex-1">
               <input
-                type="text"
+                ref={searchInputRef}
+                type="search"
                 placeholder="Search menu items..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm text-black"
+                aria-label="Search menu items"
+                autoComplete="off"
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm text-black min-h-[44px]"
               />
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
+                <Search className="h-4 w-4 text-gray-400" aria-hidden="true" />
               </div>
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => setSearchTerm('')}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-700"
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
       <button
+        type="button"
         onClick={() => setViewMode(viewMode === 'favorites' ? 'all' : 'favorites')}
-        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] min-w-[44px] ${
           viewMode === 'favorites'
             ? 'bg-red-600 text-white'
             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
         }`}
         title={viewMode === 'favorites' ? 'Show All Items' : 'Show Favorites'}
+        aria-pressed={viewMode === 'favorites'}
+        aria-label={viewMode === 'favorites' ? 'Show all items' : 'Show favorites'}
       >
         {viewMode === 'favorites' ? '⭐' : '☆'}
       </button>
@@ -1038,10 +1198,10 @@ const CafeOrderSystem = () => {
       {/* Edit Order Modal */}
       {editingOrder && (
         <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-[100] transition-opacity duration-300">
-          <div className="bg-white rounded-xl p-4 sm:p-6 max-w-sm sm:max-w-md w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200 transform transition-all duration-300 scale-100">
+          <div className="bg-white rounded-xl max-w-sm sm:max-w-md w-full max-h-[90vh] shadow-2xl border border-gray-200 transform transition-all duration-300 scale-100 flex flex-col overflow-hidden">
 
             {/* Header */}
-            <div className="flex justify-between items-center mb-6 pb-4 border-b border-gray-200">
+            <div className="flex justify-between items-center flex-shrink-0 px-4 sm:px-6 pt-4 sm:pt-6 pb-4 border-b border-gray-200">
               <div>
                 <h2 className="text-2xl font-bold text-gray-900 bg-gradient-to-r from-red-600 to-red-800 bg-clip-text text-transparent">
                   Edit Order #{editingOrder.order_number.toString().padStart(3, '0')}
@@ -1052,13 +1212,16 @@ const CafeOrderSystem = () => {
                 )}
               </div>
               <button
+                type="button"
                 onClick={cancelEdit}
-                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors duration-200"
+                className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors duration-200 min-h-[44px] min-w-[44px] flex items-center justify-center"
                 title="Cancel"
               >
                 <X className="w-6 h-6" />
               </button>
             </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4">
             
             {/* Current Items Section */}
             <div className="mb-6">
@@ -1150,40 +1313,38 @@ const CafeOrderSystem = () => {
                 </div>
               )}
             </div>
+            </div>
 
-            {/* Total and Action Buttons */}
-            <div className="border-t border-gray-200 pt-6">
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <div className="text-sm text-gray-600">Order Total</div>
-                  <div className="text-2xl font-bold text-gray-900">
-                    ₹{editingOrder.total}
-                  </div>
-                </div>
-                <div className="flex gap-2 sm:gap-3 flex-col sm:flex-row">
-                  <button
-                    onClick={cancelEdit}
-                    className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-all duration-200 border border-gray-300 text-xs sm:text-sm"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={saveEditedOrder}
-                    className="px-3 py-1.5 sm:px-4 sm:py-2 bg-gradient-to-r from-red-600 to-red-800 text-white rounded-lg font-medium hover:from-red-700 hover:to-red-900 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-1.5 justify-center text-xs sm:text-sm"
-                  >
-                    <Save className="w-3 h-3 sm:w-4 sm:h-4" />
-                    Save Changes
-                  </button>
-                </div>
-              </div>
-              
+            {/* Total and Action Buttons — fixed bar */}
+            <div className="flex-shrink-0 border-t border-gray-200 bg-white px-4 sm:px-6 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
               {editingOrder.items.length === 0 && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
-                  <p className="text-sm text-yellow-800">
-                    ⚠️ This order will be deleted if you save without any items.
-                  </p>
-                </div>
+                <p className="text-xs text-yellow-800 bg-yellow-50 border-l-4 border-yellow-400 px-2 py-1.5 rounded mb-2">
+                  This order will be deleted if you save without any items.
+                </p>
               )}
+              <div className="flex items-center gap-3">
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs text-gray-500">
+                    {editingOrder.items.reduce((n, item) => n + item.quantity, 0)} items
+                  </div>
+                  <div className="text-lg font-bold text-gray-900">{formatINR(editingOrder.total)}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={cancelEdit}
+                  className="min-h-[44px] px-3 py-2 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 border border-gray-300 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveEditedOrder}
+                  className="min-h-[44px] px-4 py-2 bg-gradient-to-r from-red-600 to-red-800 text-white rounded-lg font-medium hover:from-red-700 hover:to-red-900 shadow-md flex items-center gap-1.5 justify-center text-sm"
+                >
+                  <Save className="w-4 h-4" />
+                  Save
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1246,18 +1407,40 @@ const CafeOrderSystem = () => {
           <div className="border-t border-gray-200 pt-3 sm:pt-4">
             <div className="flex flex-row justify-between items-center gap-3 mb-3">
               <button
+                type="button"
                 onClick={placeOrder}
-                className="w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2 bg-gradient-to-r from-green-600 to-green-800 text-white rounded-lg font-medium hover:from-green-700 hover:to-green-900 transition-all duration-200 shadow-md hover:shadow-lg text-sm sm:text-base"
+                className="hidden md:block w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2 bg-gradient-to-r from-green-600 to-green-800 text-white rounded-lg font-medium hover:from-green-700 hover:to-green-900 transition-all duration-200 shadow-md hover:shadow-lg text-sm sm:text-base min-h-[44px]"
               >
                 Place Order
               </button>
               <div>
                 <div className="text-xs sm:text-sm text-gray-600">Order Total</div>
                 <div className="text-lg sm:text-xl font-bold text-gray-900">
-                  ₹{buildingOrder.reduce((sum, item) => sum + (item.price * item.quantity), 0)}
+                  {formatINR(buildingTotal)}
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {buildingOrder.length > 0 && (
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 border-t border-gray-200 bg-white px-3 py-2 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+          <div className="flex items-center gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="text-xs text-gray-500 truncate">
+                {buildingOrder.reduce((n, item) => n + item.quantity, 0)} items
+                {selectedTable ? ` · ${selectedTable.table_code}` : ' · Takeaway'}
+              </div>
+              <div className="text-base font-bold text-gray-900">{formatINR(buildingTotal)}</div>
+            </div>
+            <button
+              type="button"
+              onClick={placeOrder}
+              className="min-h-[44px] flex-shrink-0 rounded-lg bg-gradient-to-r from-green-600 to-green-800 px-4 py-2 text-sm font-medium text-white shadow-md"
+            >
+              Place Order
+            </button>
           </div>
         </div>
       )}
@@ -1268,40 +1451,43 @@ const CafeOrderSystem = () => {
 
         {/* Filtered Menu Items */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1 sm:gap-1.5 md:gap-2">
-          {menuItems
-            .filter(item => {
-              // Search filter
-              const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-
-              // Category filter
-              const matchesCategory = selectedCategory === null || item.category === selectedCategory;
-
-              // View mode filter
-              const matchesViewMode = viewMode === 'all' || favorites.includes(item.id);
-
-              return matchesSearch && matchesCategory && matchesViewMode;
-            })
-            .map(item => (
+          {filteredMenuItems.map(item => {
+              const inCartQty = buildingQtyById.get(item.id) || 0;
+              const isPopular = popularNameSet.has(item.name.toLowerCase());
+              return (
               <div key={item.id} className="relative">
                 <button
+                  type="button"
                   onClick={() => addToOrder(item, 1)}
                   disabled={!selectedTable && selectedOrderType !== 'TAKEAWAY'}
-                  className={`w-full p-1.5 sm:p-2 rounded-lg text-center font-medium min-h-[60px] sm:min-h-[70px] flex flex-col justify-center transition-all duration-300 shadow-md hover:shadow-lg ${
+                  className={`w-full p-1.5 sm:p-2 rounded-lg text-center font-medium min-h-[64px] sm:min-h-[72px] flex flex-col justify-center transition-all duration-300 shadow-md hover:shadow-lg ${
                     selectedTable || selectedOrderType === 'TAKEAWAY'
                       ? 'bg-gradient-to-br from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 cursor-pointer hover:scale-105'
                       : 'bg-gray-400 cursor-not-allowed opacity-50'
                   }`}
                 >
-                  <div className="font-semibold text-[10px] sm:text-[11px] leading-tight px-0.5 overflow-hidden" style={{
+                  <div className="font-semibold text-[10px] sm:text-[11px] leading-tight px-0.5 overflow-hidden text-white" style={{
                     display: '-webkit-box',
                     WebkitLineClamp: 2,
                     WebkitBoxOrient: 'vertical'
                   }}>{item.name}</div>
-                  <div className="text-[9px] sm:text-[10px] opacity-90 mt-0.5 bg-white/20 rounded px-0.5 py-0.5">₹{item.price}</div>
+                  <div className="text-[9px] sm:text-[10px] opacity-90 mt-0.5 bg-white/20 rounded px-0.5 py-0.5 text-white">{formatINR(item.price)}</div>
                 </button>
 
-                {/* Favorite Toggle */}
+                {isPopular && (
+                  <span className="absolute bottom-1 left-1 rounded bg-amber-400 px-1 py-0.5 text-[8px] font-bold text-amber-950 pointer-events-none">
+                    Popular
+                  </span>
+                )}
+
+                {inCartQty > 0 && (
+                  <span className="absolute bottom-1 right-6 min-w-[18px] rounded-full bg-green-600 px-1 text-center text-[10px] font-bold text-white pointer-events-none">
+                    {inCartQty}
+                  </span>
+                )}
+
                 <button
+                  type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setFavorites(prev =>
@@ -1310,8 +1496,9 @@ const CafeOrderSystem = () => {
                         : [...prev, item.id]
                     );
                   }}
-                  className="absolute top-1 right-1 p-1 rounded-full bg-white/80 hover:bg-white transition-colors"
+                  className="absolute top-1 right-1 p-1 rounded-full bg-white/80 hover:bg-white transition-colors min-h-[28px] min-w-[28px] flex items-center justify-center"
                   title={favorites.includes(item.id) ? 'Remove from favorites' : 'Add to favorites'}
+                  aria-label={favorites.includes(item.id) ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
                 >
                   <svg
                     className={`w-3 h-3 ${favorites.includes(item.id) ? 'text-yellow-500 fill-current' : 'text-gray-400'}`}
@@ -1323,19 +1510,25 @@ const CafeOrderSystem = () => {
                   </svg>
                 </button>
               </div>
-            ))}
+            );
+            })}
         </div>
 
-        {/* No items found message */}
-        {menuItems.filter(item => {
-          const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
-          const matchesCategory = selectedCategory === null || item.category === selectedCategory;
-          const matchesViewMode = viewMode === 'all' || favorites.includes(item.id);
-          return matchesSearch && matchesCategory && matchesViewMode;
-        }).length === 0 && (
+        {filteredMenuItems.length === 0 && (
           <div className="text-center py-8 text-gray-500">
             <div className="text-sm">No menu items found</div>
             <div className="text-xs mt-1">Try adjusting your search or filters</div>
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('');
+                setSelectedCategory(null);
+                setViewMode('all');
+              }}
+              className="mt-3 text-sm font-medium text-red-700 hover:underline min-h-[44px]"
+            >
+              Clear filters
+            </button>
           </div>
         )}
       </div>
@@ -1414,7 +1607,7 @@ const CafeOrderSystem = () => {
                 <div className="space-y-3">
                   <div className="bg-green-50 p-3 rounded">
                     <div className="text-sm text-green-800">Total Revenue</div>
-                    <div className="text-lg font-bold text-green-900">₹{salesReport.total_revenue || 0}</div>
+                    <div className="text-lg font-bold text-green-900">{formatINR(salesReport.total_revenue || 0)}</div>
                   </div>
                   
                   <div className="bg-red-50 p-3 rounded">
@@ -1766,7 +1959,7 @@ const CafeOrderSystem = () => {
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="text-xs text-green-700 font-medium">Total Revenue</div>
-                    <div className="text-xl font-bold text-green-900">₹{salesData.total_revenue}</div>
+                    <div className="text-xl font-bold text-green-900">{formatINR(salesData.total_revenue)}</div>
                   </div>
                   <div className="text-2xl">💰</div>
                 </div>
@@ -1779,7 +1972,7 @@ const CafeOrderSystem = () => {
                     <div className="text-xs text-yellow-700 font-medium">Cash</div>
                     <div className="text-lg">💵</div>
                   </div>
-                  <div className="text-sm font-bold text-yellow-900">₹{salesData.payment_breakdown.cash.revenue}</div>
+                  <div className="text-sm font-bold text-yellow-900">{formatINR(salesData.payment_breakdown.cash.revenue)}</div>
                   <div className="text-xs text-yellow-600">{salesData.payment_breakdown.cash.orders} orders</div>
                 </div>
 
@@ -1788,7 +1981,7 @@ const CafeOrderSystem = () => {
                     <div className="text-xs text-blue-700 font-medium">Online</div>
                     <div className="text-lg">📱</div>
                   </div>
-                  <div className="text-sm font-bold text-blue-900">₹{salesData.payment_breakdown.online.revenue}</div>
+                  <div className="text-sm font-bold text-blue-900">{formatINR(salesData.payment_breakdown.online.revenue)}</div>
                   <div className="text-xs text-blue-600">{salesData.payment_breakdown.online.orders} orders</div>
                 </div>
               </div>
