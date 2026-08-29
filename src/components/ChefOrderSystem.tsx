@@ -31,7 +31,7 @@ const ChefOrderSystem = () => {
     // Set up polling for real-time updates
     const pollingInterval = setInterval(() => {
       fetchOrders();
-    }, 3000); // Poll every 3 seconds
+    }, 4000); // Poll every 3 seconds
     
     // Clean up interval on component unmount
     return () => clearInterval(pollingInterval);

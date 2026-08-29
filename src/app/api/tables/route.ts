@@ -1,9 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
+import { cache } from '@/lib/cache';
 
-export async function GET(request: NextRequest) {
+const TABLES_CACHE_KEY = 'tables_occupancy';
+
+export async function GET() {
   try {
-    // Get all tables with occupancy status (including inactive ones)
+    const cached = cache.get(TABLES_CACHE_KEY);
+    if (cached) {
+      return NextResponse.json(cached);
+    }
+
     const rows = await executeQuery(`
       SELECT
         t.id,
@@ -11,16 +18,15 @@ export async function GET(request: NextRequest) {
         t.table_name,
         t.capacity,
         t.is_active,
-        CASE
-          WHEN EXISTS (
-            SELECT 1 FROM orders o
-            WHERE o.table_id = t.id
-            AND o.order_type = 'DINE_IN'
-            AND o.status NOT IN ('served', 'cancelled')
-          ) THEN 1
-          ELSE 0
-        END as is_occupied
+        CASE WHEN occ.table_id IS NOT NULL THEN 1 ELSE 0 END as is_occupied
       FROM tables_master t
+      LEFT JOIN (
+        SELECT DISTINCT table_id
+        FROM orders
+        WHERE order_type = 'DINE_IN'
+          AND status NOT IN ('served', 'cancelled')
+          AND table_id IS NOT NULL
+      ) occ ON occ.table_id = t.id
       ORDER BY
         CASE
           WHEN t.table_code REGEXP '^[0-9]+$' THEN CAST(t.table_code AS UNSIGNED)
@@ -30,12 +36,12 @@ export async function GET(request: NextRequest) {
         t.table_code
     `) as any[];
 
-    // Convert is_occupied to boolean
-    const tables = rows.map(row => ({
+    const tables = (rows || []).map(row => ({
       ...row,
       is_occupied: Boolean(row.is_occupied)
     }));
 
+    cache.set(TABLES_CACHE_KEY, tables, 5);
     return NextResponse.json(tables);
   } catch (error) {
     console.error('Error fetching tables:', error);
@@ -50,7 +56,6 @@ export async function POST(request: NextRequest) {
   try {
     const { table_code, table_name, capacity } = await request.json();
 
-    // Validation
     if (!table_code || !table_name || !capacity) {
       return NextResponse.json(
         { error: 'table_code, table_name, and capacity are required' },
@@ -65,9 +70,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if table_code already exists
     const existingTable = await executeQuery(
-      'SELECT id FROM tables_master WHERE table_code = ? AND is_active = 1',
+      'SELECT id FROM tables_master WHERE table_code = ? AND is_active = 1 LIMIT 1',
       [table_code]
     ) as any[];
 
@@ -78,11 +82,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Insert new table
     const result = await executeQuery(
       'INSERT INTO tables_master (table_code, table_name, capacity, is_active, created_at) VALUES (?, ?, ?, 1, NOW())',
       [table_code, table_name, capacity]
     ) as any;
+
+    cache.delete(TABLES_CACHE_KEY);
 
     return NextResponse.json({
       id: result.insertId,
@@ -100,5 +105,3 @@ export async function POST(request: NextRequest) {
     );
   }
 }
-
-

@@ -1,137 +1,56 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { getTodayDateString } from '@/lib/timezone-dynamic';
+import { getSqlDayRange } from '@/lib/date-range';
+import { mapOrderRow } from '@/lib/order-utils';
+
+const ALLOWED_SORT = new Set(['order_number', 'total', 'order_time', 'status']);
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '15');
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '15', 10)));
     const status = searchParams.get('status') || '';
-
-    // Validate and sanitize sortBy parameter
-    const allowedSortColumns = ['order_number', 'total', 'order_time', 'status'];
-    const sortBy = allowedSortColumns.includes(searchParams.get('sortBy') || '') ? searchParams.get('sortBy') : 'order_time';
-
-    // Validate sortOrder parameter
+    const sortBy = ALLOWED_SORT.has(searchParams.get('sortBy') || '') ? searchParams.get('sortBy')! : 'order_time';
     const sortOrder = (searchParams.get('sortOrder') || 'DESC').toUpperCase() === 'ASC' ? 'ASC' : 'DESC';
-
-    console.log('🔍 API Debug: Received request with params:', { page, limit, status, sortBy, sortOrder });
-
+    const todayFilter = searchParams.get('today') === 'true';
     const offset = (page - 1) * limit;
 
-    // Build WHERE clause
-    let whereClause = '';
+    const whereClauses: string[] = [];
     const params: any[] = [];
 
-    const todayFilter = searchParams.get('today') === 'true';
-
     if (status) {
-      whereClause = 'WHERE status = ?';
+      whereClauses.push('status = ?');
       params.push(status);
     }
 
     if (todayFilter) {
       const today = await getTodayDateString();
-      if (whereClause) {
-        whereClause += ' AND DATE(order_time) = ?';
-      } else {
-        whereClause = 'WHERE DATE(order_time) = ?';
-      }
-      params.push(today);
+      const { start, end } = getSqlDayRange(today);
+      whereClauses.push('order_time >= ? AND order_time < ?');
+      params.push(start, end);
     }
 
-    // Get total count first
-    let totalOrders = 0;
-    try {
-      if (params.length > 0) {
-        const countQuery = `SELECT COUNT(*) as total FROM orders ${whereClause}`;
-        const countResult = await executeQuery(countQuery, params) as any[];
-        totalOrders = countResult[0]?.total || 0;
-      } else {
-        const countQuery = `SELECT COUNT(*) as total FROM orders`;
-        const countResult = await executeQuery(countQuery) as any[];
-        totalOrders = countResult[0]?.total || 0;
-      }
-    } catch (countError) {
-      console.error('🔍 Error in count query:', countError);
-      // Continue with 0 total orders
-    }
+    const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
+    const [countResult, orders] = await Promise.all([
+      executeQuery(`SELECT COUNT(*) as total FROM orders ${whereSql}`, params) as Promise<any[]>,
+      executeQuery(
+        `SELECT id, order_number, items, total, status, payment_status, payment_mode, order_time
+         FROM orders
+         ${whereSql}
+         ORDER BY ${sortBy} ${sortOrder}
+         LIMIT ? OFFSET ?`,
+        [...params, limit, offset]
+      ) as Promise<any[]>,
+    ]);
+
+    const totalOrders = countResult[0]?.total || 0;
     const totalPages = Math.ceil(totalOrders / limit);
 
-    // Get paginated orders - try with string interpolation instead of parameters
-    let orders: any[] = [];
-    try {
-      let ordersQuery = '';
-
-      if (params.length > 0) {
-        ordersQuery = `
-          SELECT
-            id,
-            order_number,
-            items,
-            total,
-            status,
-            payment_status,
-            payment_mode,
-            order_time
-          FROM orders
-          ${whereClause}
-          ORDER BY ${sortBy} ${sortOrder}
-          LIMIT ${limit} OFFSET ${offset}
-        `;
-      } else {
-        ordersQuery = `
-          SELECT
-            id,
-            order_number,
-            items,
-            total,
-            status,
-            payment_status,
-            payment_mode,
-            order_time
-          FROM orders
-          ORDER BY ${sortBy} ${sortOrder}
-          LIMIT ${limit} OFFSET ${offset}
-        `;
-      }
-
-      console.log('🔍 Orders query:', ordersQuery);
-
-      const queryResult = await executeQuery(ordersQuery, params.length > 0 ? params : undefined);
-      orders = Array.isArray(queryResult) ? queryResult : [];
-
-      console.log('🔍 Orders retrieved:', orders.length);
-
-    } catch (ordersError) {
-      console.error('🔍 Error in orders query:', ordersError);
-      // Return empty orders array instead of throwing
-      orders = [];
-    }
-
-    // Parse items JSON for each order
-    const processedOrders = orders.map(order => {
-      let parsedItems = order.items;
-      if (typeof order.items === 'string') {
-        try {
-          parsedItems = JSON.parse(order.items);
-        } catch (error) {
-          console.error(`Error parsing items JSON for order ${order.id}:`, error);
-          parsedItems = [];
-        }
-      }
-      return {
-        ...order,
-        items: parsedItems,
-        payment_status: order.payment_status || 'pending',
-        payment_mode: order.payment_mode || null
-      };
-    });
-
     return NextResponse.json({
-      orders: processedOrders,
+      orders: (orders || []).map(mapOrderRow),
       pagination: {
         currentPage: page,
         totalPages,
@@ -141,7 +60,6 @@ export async function GET(request: NextRequest) {
         hasPrevPage: page > 1
       }
     });
-
   } catch (error) {
     console.error('Error fetching paginated orders:', error);
     return NextResponse.json(

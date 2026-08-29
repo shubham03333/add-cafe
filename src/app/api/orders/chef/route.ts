@@ -1,32 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
+import { mapOrderRow } from '@/lib/order-utils';
 
-// GET orders for chef view (pending and preparing orders)
 export async function GET() {
   try {
     const rows = await executeQuery(
-      'SELECT * FROM orders WHERE status IN ("pending", "preparing") ORDER BY order_time ASC'
+      `SELECT id, order_number, items, total, status, payment_status, order_time, order_type, table_id
+       FROM orders
+       WHERE status IN ('pending', 'preparing')
+       ORDER BY order_time ASC
+       LIMIT 150`
     ) as any[];
 
-    const orders = rows.map(row => {
-      // Check if items is already an object or needs parsing
-      let itemsData = row.items;
-      if (typeof row.items === 'string') {
-        try {
-          itemsData = JSON.parse(row.items);
-        } catch (parseError) {
-          console.warn('Failed to parse items JSON:', row.items);
-          itemsData = [];
-        }
-      }
-      
-      return {
-        ...row,
-        items: itemsData
-      };
-    });
-
-    return NextResponse.json(orders);
+    return NextResponse.json((rows || []).map(mapOrderRow));
   } catch (error) {
     console.error('Error fetching chef orders:', error);
     return NextResponse.json(
@@ -36,12 +22,10 @@ export async function GET() {
   }
 }
 
-// PUT method to update order status to 'ready' (prepared)
 export async function PUT(request: NextRequest) {
   try {
     const { id } = await request.json();
 
-    // Update the order status to 'ready'
     await executeQuery(
       'UPDATE orders SET status = "ready" WHERE id = ?',
       [id]

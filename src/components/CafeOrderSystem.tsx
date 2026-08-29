@@ -146,15 +146,19 @@ const CafeOrderSystem = () => {
     fetchOrders();
     fetchTables();
     fetchPopularItems();
+    fetchDailySales();
 
-    // Set up polling for real-time updates with longer intervals to reduce memory usage
     const ordersPollingInterval = setInterval(() => {
       fetchOrders();
-    }, 5000); // Poll orders every 5 seconds (increased from 3)
+    }, 5000);
+
+    const salesPollingInterval = setInterval(() => {
+      fetchDailySales();
+    }, 15000);
 
     const menuPollingInterval = setInterval(() => {
-      fetchMenu(); // Refresh menu items to reflect availability changes from admin
-    }, 30000); // Poll menu every 30 seconds (reduced frequency)
+      fetchMenu();
+    }, 30000);
 
     // Listen for order update events (e.g., payment status changes)
     const handleOrderUpdate = () => {
@@ -181,6 +185,7 @@ const CafeOrderSystem = () => {
     // Clean up intervals and event listener on component unmount
     return () => {
       clearInterval(ordersPollingInterval);
+      clearInterval(salesPollingInterval);
       clearInterval(menuPollingInterval);
       if (memoryCheckInterval) {
         clearInterval(memoryCheckInterval);
@@ -259,9 +264,6 @@ const CafeOrderSystem = () => {
     // Calculate pending orders count (orders that are not served)
     const pendingOrders = ordersArray.filter((order: Order) => order.status !== 'served');
     setPendingOrdersCount(pendingOrders.length);
-
-    // Fetch daily sales from API instead of calculating locally
-    await fetchDailySales();
 
     setLoading(false);
 
@@ -633,7 +635,7 @@ const CafeOrderSystem = () => {
   const fetchServedOrders = async () => {
     setLoadingServedOrders(true);
     try {
-      const response = await fetch('/api/orders?includeServed=true');
+      const response = await fetch('/api/orders?status=served');
       if (!response.ok) throw new Error('Failed to fetch served orders');
       const data = await response.json();
       // Handle paginated response structure

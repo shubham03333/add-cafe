@@ -1,6 +1,3 @@
-// Simple in-memory LRU cache for performance optimization
-// For production, consider using Redis
-
 interface CacheEntry<T> {
   data: T;
   timestamp: number;
@@ -15,8 +12,8 @@ class MemoryCache {
     this.maxSize = maxSize;
   }
 
-  set<T>(key: string, data: T, ttlSeconds = 300): void { // Default 5 minutes TTL
-    // Remove oldest entries if cache is full
+  /** @param ttlSeconds Time to live in seconds */
+  set<T>(key: string, data: T, ttlSeconds = 300): void {
     if (this.cache.size >= this.maxSize) {
       const firstKey = this.cache.keys().next().value;
       if (firstKey) {
@@ -24,6 +21,7 @@ class MemoryCache {
       }
     }
 
+    this.cache.delete(key);
     this.cache.set(key, {
       data,
       timestamp: Date.now(),
@@ -35,12 +33,13 @@ class MemoryCache {
     const entry = this.cache.get(key);
     if (!entry) return null;
 
-    // Check if entry has expired
     if (Date.now() - entry.timestamp > entry.ttl) {
       this.cache.delete(key);
       return null;
     }
 
+    this.cache.delete(key);
+    this.cache.set(key, entry);
     return entry.data;
   }
 
@@ -48,11 +47,18 @@ class MemoryCache {
     this.cache.delete(key);
   }
 
+  deleteByPrefix(prefix: string): void {
+    for (const key of this.cache.keys()) {
+      if (key.startsWith(prefix)) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
   clear(): void {
     this.cache.clear();
   }
 
-  // Get cache stats for monitoring
   getStats() {
     return {
       size: this.cache.size,
@@ -62,22 +68,24 @@ class MemoryCache {
   }
 }
 
-// Global cache instance
-export const cache = new MemoryCache(200); // Allow up to 200 cached items
+export const cache = new MemoryCache(200);
 
-// Cache keys constants
 export const CACHE_KEYS = {
   MENU_ITEMS: 'menu_items',
   MENU_ITEMS_BY_CATEGORY: (category: string) => `menu_items_category_${category}`,
   INVENTORY_DATA: 'inventory_data',
   DAILY_SALES_SUMMARY: 'daily_sales_summary',
-  SYSTEM_SETTINGS: 'system_settings'
+  TODAY_SALES: 'today_sales',
+  TOTAL_REVENUE: 'total_revenue',
+  SYSTEM_SETTINGS: 'system_settings',
+  TIMEZONE: 'timezone_setting',
 };
 
-// Cache TTL constants (in seconds)
 export const CACHE_TTL = {
-  MENU_ITEMS: 600, // 10 minutes
-  INVENTORY: 300,  // 5 minutes
-  SALES_DATA: 180, // 3 minutes
-  SYSTEM_SETTINGS: 3600 // 1 hour
+  MENU_ITEMS: 120,
+  INVENTORY: 60,
+  SALES_DATA: 8,
+  TOTAL_REVENUE: 30,
+  SYSTEM_SETTINGS: 300,
+  TIMEZONE: 60,
 };

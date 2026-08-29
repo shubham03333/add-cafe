@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
+import { cache } from '@/lib/cache';
 
 export async function PUT(
   request: NextRequest,
@@ -35,6 +36,8 @@ export async function PUT(
       'UPDATE tables_master SET is_active = ? WHERE id = ?',
       [is_active ? 1 : 0, id]
     );
+
+    cache.delete('tables_occupancy');
 
     return NextResponse.json({
       message: 'Table status updated successfully',
@@ -100,7 +103,7 @@ export async function DELETE(
 
     // Check if table has active orders
     const activeOrders = await executeQuery(
-      'SELECT id FROM orders WHERE table_id = ? AND status NOT IN ("served", "cancelled")',
+      'SELECT id FROM orders WHERE table_id = ? AND status NOT IN ("served", "cancelled") LIMIT 1',
       [id]
     ) as any[];
 
@@ -116,6 +119,8 @@ export async function DELETE(
       'DELETE FROM tables_master WHERE id = ?',
       [id]
     );
+
+    cache.delete('tables_occupancy');
 
     return NextResponse.json({ message: 'Table deleted successfully' });
   } catch (error) {

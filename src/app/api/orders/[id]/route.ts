@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { UpdateOrderRequest } from '@/types';
-import { getTodayDateString } from '@/lib/timezone-dynamic'; // Import dynamic timezone utility
-// PUT update order
+import { getTodayDateString } from '@/lib/timezone-dynamic';
+import { adjustMenuStock } from '@/lib/stock';
+import { cache, CACHE_KEYS } from '@/lib/cache';
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -49,54 +51,41 @@ export async function PUT(
     );
 
     if (body.status === 'served') {
-      console.log(`Updating order status for order ID: ${id} to served`);
-      // Get the order total first
       const orderRows = await executeQuery(
-        'SELECT total FROM orders WHERE id = ?',
+        'SELECT total FROM orders WHERE id = ? LIMIT 1',
         [id]
       ) as any[];
-      
+
       if (orderRows && orderRows.length > 0) {
         const orderTotal = orderRows[0].total;
-        console.log(`Order total for order ID ${id}: ₹${orderTotal}`);
-        const today = await getTodayDateString(); // Use configured timezone date
-        
+        const today = await getTodayDateString();
+
         await executeQuery(`
-          INSERT INTO daily_sales (sale_date, total_orders, total_revenue) 
-          VALUES (?, 1, ?) 
-          ON DUPLICATE KEY UPDATE 
+          INSERT INTO daily_sales (sale_date, total_orders, total_revenue)
+          VALUES (?, 1, ?)
+          ON DUPLICATE KEY UPDATE
             total_orders = total_orders + 1,
             total_revenue = total_revenue + ?
         `, [today, orderTotal, orderTotal]);
-        console.log(`Updated daily sales for ${today}: +1 order, +₹${orderTotal}`);
       }
+
+      cache.delete(CACHE_KEYS.TODAY_SALES);
+      cache.delete(CACHE_KEYS.TOTAL_REVENUE);
+      cache.delete('tables_occupancy');
     }
 
-    // Reduce stock quantity for each item in the order when status is served
-    if (body.status === 'served' && body.items) {
-      console.log(`Reducing stock for order ID: ${id}`);
-      
-      const stockAdjustments = body.items.map(item => ({
-        id: item.id,
-        quantity: item.quantity,
-        action: 'subtract'
-      }));
+    if (body.status === 'served' && body.items?.length) {
+      await adjustMenuStock(
+        body.items.map(item => ({
+          id: item.id,
+          quantity: item.quantity,
+          action: 'subtract' as const
+        }))
+      );
+    }
 
-      try {
-        const inventoryResponse = await fetch('http://localhost:3000/api/inventory', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(stockAdjustments)
-        });
-
-        if (!inventoryResponse.ok) {
-          console.error('Failed to update inventory:', await inventoryResponse.text());
-        } else {
-          console.log('Stock levels updated successfully');
-        }
-      } catch (error) {
-        console.error('Error updating inventory:', error);
-      }
+    if (body.status && body.status !== 'served') {
+      cache.delete('tables_occupancy');
     }
 
     return NextResponse.json({ success: true });
@@ -109,7 +98,6 @@ export async function PUT(
   }
 }
 
-// DELETE order
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -118,6 +106,8 @@ export async function DELETE(
     const { id } = await params;
 
     await executeQuery('DELETE FROM orders WHERE id = ?', [id]);
+    cache.delete('tables_occupancy');
+    cache.delete(CACHE_KEYS.TODAY_SALES);
 
     return NextResponse.json({ success: true });
   } catch (error) {

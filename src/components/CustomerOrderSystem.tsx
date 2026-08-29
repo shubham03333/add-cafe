@@ -252,13 +252,18 @@ const CustomerOrderSystem = () => {
     // Fix flicker: fetch orders excluding served to keep edit button visible, but include cancelled
     const fetchActiveOrdersSafe = async () => {
       try {
-        const response = await fetch('/api/orders?status=preparing,ready,pending,cancelled&includeServed=false');
+        const response = await fetch(
+          orderNumber
+            ? `/api/orders?order_number=${encodeURIComponent(orderNumber)}`
+            : '/api/orders?status=preparing,ready,pending,cancelled&includeServed=false'
+        );
         if (!response.ok) throw new Error('Failed to fetch orders');
         const data = await response.json();
-        setActiveOrders(data);
+        const ordersArray = Array.isArray(data) ? data : (data.orders || []);
+        setActiveOrders(ordersArray);
 
         if (orderNumber !== null) {
-          const ourOrder = data.find((order: Order) => order.order_number === orderNumber);
+          const ourOrder = ordersArray.find((order: Order) => order.order_number === orderNumber);
           if (ourOrder) {
             setOrderStatus(ourOrder.status);
             setPaymentStatus(ourOrder.payment_status);
@@ -325,10 +330,11 @@ const CustomerOrderSystem = () => {
       const response = await fetch('/api/orders?status=preparing,ready,served,cancelled&includeServed=true');
       if (!response.ok) throw new Error('Failed to fetch orders');
       const data = await response.json();
-      setActiveOrders(data);
+      const ordersArray = Array.isArray(data) ? data : (data.orders || []);
+      setActiveOrders(ordersArray);
 
       if (orderNumber !== null) {
-        const ourOrder = data.find((order: Order) => order.order_number === orderNumber);
+        const ourOrder = ordersArray.find((order: Order) => order.order_number === orderNumber);
         if (ourOrder) {
           setOrderStatus(ourOrder.status);
           setPaymentStatus(ourOrder.payment_status);

@@ -7,7 +7,7 @@ const nextConfig: NextConfig = {
   "eslint": { "ignoreDuringBuilds": true },
 
   // Memory optimizations for development and production
-  serverExternalPackages: [],
+  serverExternalPackages: ['mysql2'],
 
   // Webpack optimizations for memory management
   webpack: (config, { dev, isServer }) => {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
+import { getSqlDayRange } from '@/lib/date-range';
 
 export async function POST(request: NextRequest) {
   try {
@@ -13,39 +14,20 @@ export async function POST(request: NextRequest) {
     }
 
     // First, let's see current revenue for the date
+    const { start, end } = getSqlDayRange(date);
+
     const currentRows = await executeQuery(
       `SELECT
         DATE_FORMAT(order_time, '%Y-%m-%d') as date,
         SUM(total) as current_revenue,
         COUNT(*) as order_count
        FROM orders
-       WHERE DATE(order_time) = ? AND payment_status = 'paid'`,
-      [date]
+       WHERE order_time >= ? AND order_time < ? AND payment_status = 'paid'`,
+      [start, end]
     ) as any[];
 
     const currentRevenue = currentRows.length > 0 ? currentRows[0].current_revenue : 0;
     const orderCount = currentRows.length > 0 ? currentRows[0].order_count : 0;
-
-    // Check if revenue_overrides table exists, create if not
-    const tables = await executeQuery(
-      "SHOW TABLES LIKE 'revenue_overrides'"
-    ) as any[];
-
-    if (tables.length === 0) {
-      console.log('Creating revenue_overrides table...');
-      await executeQuery(`
-        CREATE TABLE revenue_overrides (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          date DATE NOT NULL,
-          manual_revenue DECIMAL(10,2) NOT NULL,
-          original_revenue DECIMAL(10,2),
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-          UNIQUE KEY unique_date (date)
-        )
-      `);
-      console.log('revenue_overrides table created');
-    }
 
     // Insert or update the manual revenue
     await executeQuery(`
