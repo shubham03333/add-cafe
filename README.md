@@ -56,6 +56,15 @@ This application requires a PlanetScale MySQL database. You can set up your data
 
 Copy `.env.example` to `.env.local` and update the values with your actual database credentials.
 
+### Catalog integration (Phase 1)
+
+Service-to-service API for the digital catalog. Does not change waiter, chef, or admin screens.
+
+1. Set `INTEGRATION_API_KEY`, `INTEGRATION_WEBHOOK_SECRET`, and optionally `CATALOG_WEBHOOK_URL` in `.env.local` / Vercel.
+2. Run `scripts/add-integration-columns.sql` on TiDB (manual).
+3. See `INTEGRATION.md` for auth, idempotency, webhooks, and rollback.
+4. Smoke test: `INTEGRATION_API_KEY=... npm run test:integration`
+
 ### Database Schema
 
 The application requires the following tables:

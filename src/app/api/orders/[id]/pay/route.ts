@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { cache, CACHE_KEYS } from '@/lib/cache';
+import { fireCatalogWebhook } from '@/lib/integration-webhooks';
 
 export async function POST(
   request: NextRequest,
@@ -27,6 +28,7 @@ export async function POST(
     cache.delete(CACHE_KEYS.TODAY_SALES);
     cache.delete(CACHE_KEYS.TOTAL_REVENUE);
 
+    fireCatalogWebhook(id, 'order.paid');
     return NextResponse.json({
       success: true,
       message: 'Payment processed successfully'

@@ -1704,7 +1704,7 @@ const CafeOrderSystem = () => {
               </div>
 
               {/* Google Review QR Code */}
-              <GoogleReviewQR size={60} />
+              <GoogleReviewQR size={60} tableCode={viewingOrder.table_code} />
 
               {/* Footer */}
               <div className="text-center text-xs text-gray-500 print:text-black mb-2 print:mb-1">

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { mapOrderRow } from '@/lib/order-utils';
+import { fireCatalogWebhook } from '@/lib/integration-webhooks';
 
 export async function GET() {
   try {
@@ -31,6 +32,7 @@ export async function PUT(request: NextRequest) {
       [id]
     );
 
+    if (id) fireCatalogWebhook(id, 'order.updated');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error updating order status:', error);

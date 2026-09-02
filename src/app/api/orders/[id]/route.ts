@@ -4,6 +4,7 @@ import { UpdateOrderRequest } from '@/types';
 import { getTodayDateString } from '@/lib/timezone-dynamic';
 import { adjustMenuStock } from '@/lib/stock';
 import { cache, CACHE_KEYS } from '@/lib/cache';
+import { fireCatalogWebhook } from '@/lib/integration-webhooks';
 
 export async function PUT(
   request: NextRequest,
@@ -88,6 +89,7 @@ export async function PUT(
       cache.delete('tables_occupancy');
     }
 
+    fireCatalogWebhook(id, 'order.updated');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error updating order:', error);
