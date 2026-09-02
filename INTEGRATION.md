@@ -33,7 +33,7 @@ The catalog talks to POS only through `/api/integrations/*`. Customer browsing m
 - Replay returns the original `{ id, order_number, status, created_at }`
 
 ## Table mapping
-POS uses `tables_master.table_code` (string). Catalog QR uses integer `/t/{n}`. Map `3` → `"3"` unless a table uses codes like `T1`.
+POS uses `tables_master.table_code` (e.g. `T01`…`T12`). Catalog QR uses integer `/t/{n}`. Default: `5` → `"T05"`. Override with catalog `TABLE_NUMBER_TO_CODE` if a code does not follow `T##`.
 
 ## Rollback
 1. Unset `CATALOG_WEBHOOK_URL` and `INTEGRATION_API_KEY` on POS.
