@@ -7,7 +7,7 @@ const GoogleReviewQR = ({ size = 80, tableCode }) => {
   const template = process.env.NEXT_PUBLIC_CATALOG_REVIEW_URL_TEMPLATE;
   const googleReviewUrl =
     tableCode && template
-      ? template.replaceAll('{table}', String(tableCode))
+      ? template.replace(/\{table\}/g, String(tableCode))
       : FALLBACK_GOOGLE_URL;
 
   return (

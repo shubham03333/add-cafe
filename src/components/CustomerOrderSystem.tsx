@@ -1,4 +1,4 @@
- 'use client';
+'use client';
 
 /** @deprecated Use the digital catalog QR flow. Kept behind CUSTOMER_ORDERING_ENABLED. */
 

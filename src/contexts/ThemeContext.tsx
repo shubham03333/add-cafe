@@ -104,8 +104,10 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
   useEffect(() => {
     // Load theme from localStorage
     const savedTheme = localStorage.getItem('dashboard-theme') as Theme;
-    if (savedTheme && Object.keys(themeConfig).includes(savedTheme)) {
+    if (savedTheme && Object.keys(themeConfig).includes(savedTheme) && savedTheme !== 'dark' && savedTheme !== 'auto') {
       setTheme(savedTheme);
+    } else {
+      setTheme('light');
     }
   }, []);
 
@@ -128,12 +130,8 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
 
   // Get the effective theme (if auto, detect system preference)
   const getEffectiveTheme = (): Exclude<Theme, 'auto'> => {
-    if (theme === 'auto') {
-      // Check if user prefers dark mode
-      if (typeof window !== 'undefined' && window.matchMedia) {
-        return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      }
-      return 'light'; // Default to light if can't detect
+    if (theme === 'auto' || theme === 'dark') {
+      return 'light';
     }
     return theme as Exclude<Theme, 'auto'>;
   };

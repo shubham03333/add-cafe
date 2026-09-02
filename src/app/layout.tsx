@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import "./globals.css";
-import { CustomerAuthProvider } from "@/contexts/CustomerAuthContext";
 
 export const metadata: Metadata = {
   title: "Adda Cafe Orders",
@@ -18,7 +16,8 @@ export const metadata: Metadata = {
 };
 
 export const viewport = {
-  themeColor: '#000000',
+  themeColor: '#fafafa',
+  colorScheme: 'light',
 };
 
 export default function RootLayout({
@@ -27,13 +26,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className="antialiased">
-        <CustomerAuthProvider>
-          {children}
-        </CustomerAuthProvider>
-        <Script src="https://pay.google.com/gp/p/js/pay.js" strategy="beforeInteractive" />
-      </body>
+    <html lang="en" style={{ colorScheme: 'light' }}>
+      <body className="antialiased">{children}</body>
     </html>
   );
 }

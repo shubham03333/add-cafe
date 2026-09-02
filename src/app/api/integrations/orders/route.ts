@@ -6,6 +6,7 @@ import { getSqlDayRange } from '@/lib/date-range';
 import { cache, CACHE_KEYS } from '@/lib/cache';
 import { integrationJson, requireIntegrationAuth } from '@/lib/integration-auth';
 import { sqlRows } from '@/lib/sql-rows';
+import { findActiveTableId } from '@/lib/find-active-table';
 
 function isUnknownColumn(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -81,14 +82,10 @@ export async function POST(request: NextRequest) {
       if (!tableCode) {
         return integrationJson(request, { error: 'table_code is required for DINE_IN orders' }, 400);
       }
-      const tableCheck = sqlRows(await executeQuery(
-        'SELECT id FROM tables_master WHERE table_code = ? AND is_active = 1 LIMIT 1',
-        [tableCode]
-      ));
-      if (tableCheck.length === 0) {
+      tableId = await findActiveTableId(tableCode);
+      if (!tableId) {
         return integrationJson(request, { error: 'Invalid or inactive table' }, 400);
       }
-      tableId = tableCheck[0].id;
     }
 
     const ids = items.map((item) => Number(item.id)).filter((id) => Number.isInteger(id) && id > 0);
