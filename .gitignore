@@ -38,7 +38,7 @@ yarn-error.log*
 .vercel
 
 .slingshot/
-.vscode
+.vscode/
 
 
 # typescript
