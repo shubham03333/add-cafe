@@ -439,7 +439,6 @@ const CafeOrderSystem = () => {
           table: order.table_code || order.table_name || 'table',
           guest: order.customer_name || undefined,
         });
-        setPendingSidebarOpen(true);
       }
       for (const order of ordersArray) {
         seenOrderIds.current.add(order.id);
@@ -1135,20 +1134,30 @@ const CafeOrderSystem = () => {
       )}
 
       {qrAlert ? (
-        <button
-          type="button"
-          className="mb-2 w-full rounded-lg bg-amber-400 px-4 py-3 text-left text-gray-900 shadow-lg print:hidden"
-          onClick={() => {
-            setPendingSidebarOpen(true);
-            setQrAlert(null);
-          }}
-        >
-          <span className="block text-xs font-semibold uppercase tracking-wide">QR table order</span>
-          <span className="block text-lg font-black">
-            Order #{qrAlert.orderNumber} placed from {qrAlert.table}
-            {qrAlert.guest ? ` · ${qrAlert.guest}` : ''}
-          </span>
-        </button>
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4 print:hidden">
+          <div
+            role="alertdialog"
+            aria-labelledby="qr-alert-title"
+            className="relative w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl"
+          >
+            <button
+              type="button"
+              onClick={() => setQrAlert(null)}
+              className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full text-gray-500 hover:bg-gray-100 hover:text-gray-800"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">QR table order</p>
+            <p id="qr-alert-title" className="mt-2 pr-8 text-xl font-black text-gray-900">
+              Order #{qrAlert.orderNumber}
+            </p>
+            <p className="mt-1 text-base font-semibold text-gray-700">
+              Table {qrAlert.table}
+              {qrAlert.guest ? ` · ${qrAlert.guest}` : ''}
+            </p>
+          </div>
+        </div>
       ) : null}
 
       {/* Header */}
