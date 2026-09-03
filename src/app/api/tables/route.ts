@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { cache } from '@/lib/cache';
+import { ensureQrSessionSchema } from '@/lib/qr-table-session';
 
 const TABLES_CACHE_KEY = 'tables_occupancy';
 
 export async function GET() {
   try {
+    await ensureQrSessionSchema();
     const cached = cache.get(TABLES_CACHE_KEY);
     if (cached) {
       return NextResponse.json(cached);
@@ -18,7 +20,8 @@ export async function GET() {
         t.table_name,
         t.capacity,
         t.is_active,
-        CASE WHEN occ.table_id IS NOT NULL THEN 1 ELSE 0 END as is_occupied
+        CASE WHEN occ.table_id IS NOT NULL THEN 1 ELSE 0 END as is_occupied,
+        CASE WHEN qr.table_id IS NOT NULL THEN 1 ELSE 0 END as qr_session_open
       FROM tables_master t
       LEFT JOIN (
         SELECT DISTINCT table_id
@@ -27,6 +30,12 @@ export async function GET() {
           AND status NOT IN ('served', 'cancelled')
           AND table_id IS NOT NULL
       ) occ ON occ.table_id = t.id
+      LEFT JOIN (
+        SELECT DISTINCT table_id
+        FROM table_qr_sessions
+        WHERE closed_at IS NULL
+          AND expires_at > NOW()
+      ) qr ON qr.table_id = t.id
       ORDER BY
         CASE
           WHEN t.table_code REGEXP '^[0-9]+$' THEN CAST(t.table_code AS UNSIGNED)
@@ -38,7 +47,8 @@ export async function GET() {
 
     const tables = (rows || []).map(row => ({
       ...row,
-      is_occupied: Boolean(row.is_occupied)
+      is_occupied: Boolean(row.is_occupied),
+      qr_session_open: Boolean(row.qr_session_open)
     }));
 
     cache.set(TABLES_CACHE_KEY, tables, 5);

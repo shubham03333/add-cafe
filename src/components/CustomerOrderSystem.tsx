@@ -1,4 +1,6 @@
- 'use client';
+'use client';
+
+/** @deprecated Use the digital catalog QR flow. Kept behind CUSTOMER_ORDERING_ENABLED. */
 
 import { useState, useEffect } from 'react';
 import { MenuItem, OrderItem, CreateOrderRequest, Order, Table } from '@/types';

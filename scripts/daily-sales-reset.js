@@ -69,20 +69,9 @@ async function resetDailySales() {
       console.log('ℹ️ No sales recorded yesterday, skipping update');
     }
 
-    // 3. Optional: Clean up old orders if needed (keep served orders for 30 days)
-    console.log('🧹 Checking for old orders to clean up...');
-    
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
-
-    const [cleanupResult] = await db.execute(`
-      DELETE FROM orders 
-      WHERE status = 'served' 
-        AND DATE(order_time) < ?
-    `, [thirtyDaysAgoStr]);
-
-    console.log(`🗑️ Cleaned up ${cleanupResult.affectedRows} old served orders`);
+    // Do not delete served orders. Reports still read the orders table.
+    // Junk-only cleanup: npm run purge-junk (cancelled/pending/OTP/idempotency/QR sessions).
+    console.log('ℹ️ Served orders and daily_sales were left in place.');
 
     console.log('✅ Daily sales reset process completed successfully!');
 

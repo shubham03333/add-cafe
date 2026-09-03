@@ -14,6 +14,7 @@ interface PendingOrdersSidebarProps {
   onOrderClick: (order: Order) => void;
   onEditOrder: (order: Order) => void;
   onServeOrder: (order: Order) => void;
+  onAcceptOrder: (order: Order) => void;
   onDeleteOrder: (orderId: string) => void;
   onRemoveItem: (orderId: string, itemId: number) => void;
 }
@@ -30,6 +31,7 @@ const PendingOrdersSidebar: React.FC<PendingOrdersSidebarProps> = ({
   onOrderClick,
   onEditOrder,
   onServeOrder,
+  onAcceptOrder,
   onDeleteOrder,
   onRemoveItem,
 }) => {
@@ -188,6 +190,11 @@ const PendingOrdersSidebar: React.FC<PendingOrdersSidebarProps> = ({
                           Delivery
                         </span>
                       )}
+                      {order.customer_name ? (
+                        <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-semibold flex-shrink-0">
+                          {order.customer_name}
+                        </span>
+                      ) : null}
                       <span className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-semibold flex-shrink-0 ${
                         order.status === 'preparing'
                           ? 'bg-yellow-200 text-yellow-900'
@@ -250,16 +257,27 @@ const PendingOrdersSidebar: React.FC<PendingOrdersSidebarProps> = ({
                       <Edit2 className="w-3 h-3" />
                       Edit
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onServeOrder(order);
-                      }}
-                      className="flex-1 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors text-xs"
-                    >
-                      Serve
-
-                    </button>
+                    {order.status === 'pending' ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onAcceptOrder(order);
+                        }}
+                        className="flex-1 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-medium transition-colors text-xs"
+                      >
+                        Accept QR
+                      </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onServeOrder(order);
+                        }}
+                        className="flex-1 py-1 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors text-xs"
+                      >
+                        Serve
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

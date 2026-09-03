@@ -154,6 +154,9 @@ const ChefOrderSystem = () => {
                   </div>
                   <div className="text-right">
                     <div className="font-bold text-sm sm:text-base text-orange-900">₹{order.total}</div>
+                    {order.customer_name ? (
+                      <div className="text-xs font-semibold text-orange-800">{order.customer_name}</div>
+                    ) : null}
                   </div>
                 </div>
                 

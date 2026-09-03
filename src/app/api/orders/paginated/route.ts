@@ -36,14 +36,31 @@ export async function GET(request: NextRequest) {
 
     const [countResult, orders] = await Promise.all([
       executeQuery(`SELECT COUNT(*) as total FROM orders ${whereSql}`, params) as Promise<any[]>,
-      executeQuery(
-        `SELECT id, order_number, items, total, status, payment_status, payment_mode, order_time
-         FROM orders
-         ${whereSql}
-         ORDER BY ${sortBy} ${sortOrder}
-         LIMIT ? OFFSET ?`,
-        [...params, limit, offset]
-      ) as Promise<any[]>,
+      (async () => {
+        try {
+          return await executeQuery(
+            `SELECT id, order_number, items, total, status, payment_status, payment_mode, order_time, customer_name, customer_phone
+             FROM orders
+             ${whereSql}
+             ORDER BY ${sortBy} ${sortOrder}
+             LIMIT ? OFFSET ?`,
+            [...params, limit, offset]
+          ) as any[];
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          if (!(message.includes('Unknown column') || message.includes('ER_BAD_FIELD_ERROR'))) {
+            throw error;
+          }
+          return await executeQuery(
+            `SELECT id, order_number, items, total, status, payment_status, payment_mode, order_time
+             FROM orders
+             ${whereSql}
+             ORDER BY ${sortBy} ${sortOrder}
+             LIMIT ? OFFSET ?`,
+            [...params, limit, offset]
+          ) as any[];
+        }
+      })(),
     ]);
 
     const totalOrders = countResult[0]?.total || 0;

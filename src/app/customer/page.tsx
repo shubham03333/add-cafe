@@ -1,34 +1,24 @@
-'use client';
-
-import React from 'react';
-import { useRouter } from 'next/navigation';
-import { useCustomerAuth } from '@/contexts/CustomerAuthContext';
-import CustomerOrderSystem from '@/components/CustomerOrderSystem';
+import CustomerPageClient from './CustomerPageClient';
 
 export default function CustomerPage() {
-  const { customer, loading } = useCustomerAuth();
-  const router = useRouter();
-
-  React.useEffect(() => {
-    if (!loading && !customer) {
-      router.push('/customer/login');
-    }
-  }, [customer, loading, router]);
-
-  if (loading) {
+  if (process.env.CUSTOMER_ORDERING_ENABLED !== 'true') {
+    const catalog = process.env.NEXT_PUBLIC_CATALOG_URL || '';
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-red-500 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100 flex items-center justify-center p-6">
+        <div className="max-w-md text-center bg-white rounded-2xl shadow p-8">
+          <h1 className="text-2xl font-bold text-gray-900">Order via QR menu</h1>
+          <p className="mt-3 text-gray-600">
+            Customer ordering on this POS site is turned off. Scan the table QR to open the digital catalog.
+          </p>
+          {catalog ? (
+            <a href={catalog} className="mt-6 inline-block rounded-xl bg-red-700 px-4 py-3 font-semibold text-white">
+              Open catalog
+            </a>
+          ) : null}
         </div>
       </div>
     );
   }
 
-  if (!customer) {
-    return null; // Will redirect to login
-  }
-
-  return <CustomerOrderSystem />;
+  return <CustomerPageClient />;
 }

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Save, X, Edit2, Trash2, Plus, BarChart3, Settings, Users, LogOut, TrendingUp, Palette, Wifi, WifiOff, Table, LayoutDashboard, UtensilsCrossed, ClipboardList, Boxes, Search } from 'lucide-react';
+import { Save, X, Edit2, Trash2, Plus, BarChart3, Settings, Users, LogOut, TrendingUp, Wifi, WifiOff, Table, LayoutDashboard, UtensilsCrossed, ClipboardList, Boxes, Search } from 'lucide-react';
 import Image from 'next/image';
 import { MenuItem, Table as TableType } from '@/types';
 import SalesReport from '@/components/SalesReport';
@@ -36,7 +36,6 @@ const AdminControlPanel = () => {
   const [salesLoading, setSalesLoading] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isOnline, setIsOnline] = useState(true);
-  const [currentTheme, setCurrentTheme] = useState('light');
   const [tables, setTables] = useState<TableType[]>([]);
   const [newTable, setNewTable] = useState({
     table_code: '',
@@ -133,14 +132,12 @@ const AdminControlPanel = () => {
     const checkAuth = () => {
       const isLoggedIn = localStorage.getItem('isLoggedIn');
       const userRole = localStorage.getItem('userRole');
-      const savedTheme = localStorage.getItem('theme');
       
       if (isLoggedIn === 'true' && userRole === 'admin') {
         setIsAuthenticated(true);
-        if (savedTheme) {
-          setCurrentTheme(savedTheme);
-          document.documentElement.setAttribute('data-theme', savedTheme);
-        }
+        localStorage.setItem('theme', 'light');
+        document.documentElement.setAttribute('data-theme', 'light');
+        document.documentElement.style.colorScheme = 'light';
         fetchMenu();
         fetchSalesData();
         fetchTables();
@@ -172,14 +169,6 @@ const AdminControlPanel = () => {
       window.removeEventListener('offline', handleOffline);
     };
   }, []);
-
-  // Theme management
-  const toggleTheme = () => {
-    const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-    setCurrentTheme(newTheme);
-    localStorage.setItem('theme', newTheme);
-    document.documentElement.setAttribute('data-theme', newTheme);
-  };
 
   const handleLogout = () => {
     localStorage.removeItem('isLoggedIn');
@@ -448,7 +437,7 @@ const AdminControlPanel = () => {
   });
 
   return (
-    <div className={currentTheme === 'dark' ? 'min-h-screen bg-zinc-950 text-zinc-100' : 'min-h-screen bg-zinc-50 text-zinc-900'}>
+    <div className="min-h-screen bg-zinc-50 text-zinc-900">
       <div className="sticky top-0 z-40">
       <header className="border-b border-red-800/20 bg-gradient-to-r from-red-700 to-red-900 shadow-sm">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6">
@@ -468,15 +457,6 @@ const AdminControlPanel = () => {
               </div>
             </div>
             <div className="flex items-center gap-1 sm:gap-2 md:gap-3 flex-wrap justify-center sm:justify-end">
-              <button
-                type="button"
-                onClick={toggleTheme}
-                className="p-2 bg-white/15 text-white rounded-xl hover:bg-white/25 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
-                title={`Switch to ${currentTheme === 'light' ? 'dark' : 'light'} theme`}
-              >
-                <Palette className="w-4 h-4 sm:w-5 sm:h-5" />
-              </button>
-
               <div className={`px-2.5 py-2 rounded-xl flex items-center gap-1.5 min-h-[44px] text-xs font-medium ${
                 isOnline
                   ? 'bg-emerald-400/20 text-emerald-50'
@@ -510,7 +490,7 @@ const AdminControlPanel = () => {
         </div>
       </header>
 
-      <nav className={`border-b backdrop-blur-md ${currentTheme === 'dark' ? 'border-zinc-800 bg-zinc-900/90' : 'border-zinc-200 bg-white/90'}`}>
+      <nav className="border-b border-zinc-200 bg-white/90 backdrop-blur-md">
         <div className="mx-auto max-w-7xl px-2 sm:px-6">
           <div className="flex overflow-x-auto scrollbar-hide gap-1 py-1.5">
             {[

@@ -4,6 +4,8 @@ import { UpdateOrderRequest } from '@/types';
 import { getTodayDateString } from '@/lib/timezone-dynamic';
 import { adjustMenuStock } from '@/lib/stock';
 import { cache, CACHE_KEYS } from '@/lib/cache';
+import { fireCatalogWebhook, notifyCatalogOrderChange } from '@/lib/integration-webhooks';
+import { closeQrSessionForOrder, markQrSessionAcceptedForOrder } from '@/lib/qr-table-session';
 
 export async function PUT(
   request: NextRequest,
@@ -50,6 +52,14 @@ export async function PUT(
       values
     );
 
+    if (body.status === 'preparing' || body.status === 'ready') {
+      await markQrSessionAcceptedForOrder(id);
+    }
+
+    if (body.payment_status === 'paid') {
+      await closeQrSessionForOrder(id);
+    }
+
     if (body.status === 'served') {
       const orderRows = await executeQuery(
         'SELECT total FROM orders WHERE id = ? LIMIT 1',
@@ -88,6 +98,7 @@ export async function PUT(
       cache.delete('tables_occupancy');
     }
 
+    fireCatalogWebhook(id, 'order.updated');
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error updating order:', error);
@@ -105,6 +116,7 @@ export async function DELETE(
   try {
     const { id } = await params;
 
+    await notifyCatalogOrderChange(id, 'order.deleted');
     await executeQuery('DELETE FROM orders WHERE id = ?', [id]);
     cache.delete('tables_occupancy');
     cache.delete(CACHE_KEYS.TODAY_SALES);

@@ -17,6 +17,7 @@
 .next/
 /out/
 
+
 # production
 /build
 
@@ -36,8 +37,8 @@ yarn-error.log*
 # vercel
 .vercel
 
-.slingshot
-.vscode
+.slingshot/
+.vscode/
 
 
 # typescript
