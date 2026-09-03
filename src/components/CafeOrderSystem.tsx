@@ -18,7 +18,10 @@ function isCatalogTableOrder(order: Order) {
 function announceCatalogOrder(order: Order) {
   const number = String(order.order_number || '').padStart(3, '0');
   const table = order.table_code || order.table_name || 'the table';
-  const phrase = `Order ${number} placed from table ${table}`;
+  const guest = String(order.customer_name || '').trim();
+  const phrase = guest
+    ? `Order ${number} placed from table ${table} by ${guest}`
+    : `Order ${number} placed from table ${table}`;
   try {
     const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (AudioCtx) {
@@ -115,7 +118,7 @@ const CafeOrderSystem = () => {
   // Sidebar state management
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingSidebarOpen, setPendingSidebarOpen] = useState(false);
-  const [qrAlert, setQrAlert] = useState<{ orderNumber: string; table: string } | null>(null);
+  const [qrAlert, setQrAlert] = useState<{ orderNumber: string; table: string; guest?: string } | null>(null);
   const seenOrderIds = useRef<Set<string> | null>(null);
   const audioReady = useRef(false);
   const [selectedTable, setSelectedTable] = useState<any>(null);
@@ -434,6 +437,7 @@ const CafeOrderSystem = () => {
         setQrAlert({
           orderNumber: String(order.order_number).padStart(3, '0'),
           table: order.table_code || order.table_name || 'table',
+          guest: order.customer_name || undefined,
         });
         setPendingSidebarOpen(true);
       }
@@ -1142,6 +1146,7 @@ const CafeOrderSystem = () => {
           <span className="block text-xs font-semibold uppercase tracking-wide">QR table order</span>
           <span className="block text-lg font-black">
             Order #{qrAlert.orderNumber} placed from {qrAlert.table}
+            {qrAlert.guest ? ` · ${qrAlert.guest}` : ''}
           </span>
         </button>
       ) : null}
@@ -1314,6 +1319,12 @@ const CafeOrderSystem = () => {
                 {editingOrder.order_type === 'DINE_IN' && editingOrder.table_code && (
                   <p className="text-sm text-blue-600 font-medium mt-1">Table: {editingOrder.table_code}</p>
                 )}
+                {editingOrder.customer_name ? (
+                  <p className="text-sm text-gray-700 mt-1">
+                    {editingOrder.customer_name}
+                    {editingOrder.customer_phone ? ` · ${editingOrder.customer_phone}` : ''}
+                  </p>
+                ) : null}
               </div>
               <button
                 type="button"
@@ -1781,6 +1792,12 @@ const CafeOrderSystem = () => {
                 {viewingOrder.order_type === 'TAKEAWAY' && (
                   <div className="text-xs text-gray-500 print:text-black">Takeaway</div>
                 )}
+                {viewingOrder.customer_name ? (
+                  <div className="text-xs text-gray-700 print:text-black font-medium">
+                    {viewingOrder.customer_name}
+                    {viewingOrder.customer_phone ? ` · ${viewingOrder.customer_phone}` : ''}
+                  </div>
+                ) : null}
               </div>
 
               {/* Items List */}

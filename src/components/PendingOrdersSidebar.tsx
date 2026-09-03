@@ -190,6 +190,11 @@ const PendingOrdersSidebar: React.FC<PendingOrdersSidebarProps> = ({
                           Delivery
                         </span>
                       )}
+                      {order.customer_name ? (
+                        <span className="px-1.5 py-0.5 sm:px-2 sm:py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-semibold flex-shrink-0">
+                          {order.customer_name}
+                        </span>
+                      ) : null}
                       <span className={`px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-full text-xs font-semibold flex-shrink-0 ${
                         order.status === 'preparing'
                           ? 'bg-yellow-200 text-yellow-900'

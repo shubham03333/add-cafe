@@ -4,9 +4,15 @@ import { v4 as uuidv4 } from 'uuid';
 import { CreateOrderRequest } from '@/types';
 import { getTodayDateString } from '@/lib/timezone-dynamic';
 import { getSqlDayRange } from '@/lib/date-range';
-import { mapOrderRow, ORDER_LIST_COLUMNS, ORDER_LIST_COLUMNS_WITH_SOURCE } from '@/lib/order-utils';
+import {
+  mapOrderRow,
+  ORDER_LIST_COLUMNS,
+  ORDER_LIST_COLUMNS_WITH_GUEST,
+  ORDER_LIST_COLUMNS_WITH_SOURCE,
+} from '@/lib/order-utils';
 import { cache, CACHE_KEYS } from '@/lib/cache';
 import { markQrSessionAccepted } from '@/lib/qr-table-session';
+import { ensureOrderGuestColumns } from '@/lib/order-guest';
 
 const VALID_STATUSES = ['pending', 'preparing', 'ready', 'served', 'cancelled'];
 
@@ -29,6 +35,7 @@ function buildStatusFilter(statusFilter: string, includeServed: boolean) {
 
 export async function GET(request: NextRequest) {
   try {
+    await ensureOrderGuestColumns();
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get('status') || '';
     const includeServed = searchParams.get('includeServed') === 'true';
@@ -103,13 +110,21 @@ export async function GET(request: NextRequest) {
     };
 
     try {
-      return await runList(ORDER_LIST_COLUMNS_WITH_SOURCE);
+      return await runList(ORDER_LIST_COLUMNS_WITH_GUEST);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      if (message.includes('Unknown column') || message.includes('ER_BAD_FIELD_ERROR')) {
-        return await runList(ORDER_LIST_COLUMNS);
+      if (!(message.includes('Unknown column') || message.includes('ER_BAD_FIELD_ERROR'))) {
+        throw error;
       }
-      throw error;
+      try {
+        return await runList(ORDER_LIST_COLUMNS_WITH_SOURCE);
+      } catch (inner) {
+        const innerMessage = inner instanceof Error ? inner.message : String(inner);
+        if (innerMessage.includes('Unknown column') || innerMessage.includes('ER_BAD_FIELD_ERROR')) {
+          return await runList(ORDER_LIST_COLUMNS);
+        }
+        throw inner;
+      }
     }
   } catch (error) {
     console.error('Error fetching orders:', error);

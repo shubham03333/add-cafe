@@ -8,6 +8,7 @@ import { integrationJson, requireIntegrationAuth } from '@/lib/integration-auth'
 import { sqlRows } from '@/lib/sql-rows';
 import { findActiveTableId } from '@/lib/find-active-table';
 import { decideCatalogDineInOrder } from '@/lib/qr-table-session';
+import { ensureOrderGuestColumns, sanitizeGuestName, sanitizeGuestPhone } from '@/lib/order-guest';
 
 function isUnknownColumn(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -162,13 +163,17 @@ export async function POST(request: NextRequest) {
     const newOrderNumber = (lastOrderNumber + 1).toString().padStart(3, '0');
 
     const customerRef = body.customer_ref ? String(body.customer_ref).slice(0, 100) : null;
+    const customerName = sanitizeGuestName(body.customer_name);
+    const customerPhone = sanitizeGuestPhone(body.customer_phone);
     const createdAt = new Date().toISOString();
+
+    await ensureOrderGuestColumns();
 
     try {
       await executeQuery(
         `INSERT INTO orders
-          (id, order_number, items, total, status, payment_status, order_type, table_id, external_source, external_ref, idempotency_key)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (id, order_number, items, total, status, payment_status, order_type, table_id, external_source, external_ref, idempotency_key, customer_name, customer_phone)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           orderId,
           newOrderNumber,
@@ -181,23 +186,47 @@ export async function POST(request: NextRequest) {
           source,
           customerRef,
           idempotencyKey,
+          customerName || null,
+          customerPhone || null,
         ]
       );
     } catch (error) {
       if (!isUnknownColumn(error)) throw error;
-      await executeQuery(
-        'INSERT INTO orders (id, order_number, items, total, status, payment_status, order_type, table_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          orderId,
-          newOrderNumber,
-          JSON.stringify(orderItems),
-          Number(computedTotal.toFixed(2)),
-          orderStatus,
-          'pending',
-          orderType,
-          tableId,
-        ]
-      );
+      try {
+        await executeQuery(
+          `INSERT INTO orders
+            (id, order_number, items, total, status, payment_status, order_type, table_id, external_source, external_ref, idempotency_key)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            orderId,
+            newOrderNumber,
+            JSON.stringify(orderItems),
+            Number(computedTotal.toFixed(2)),
+            orderStatus,
+            'pending',
+            orderType,
+            tableId,
+            source,
+            customerRef,
+            idempotencyKey,
+          ]
+        );
+      } catch (inner) {
+        if (!isUnknownColumn(inner)) throw inner;
+        await executeQuery(
+          'INSERT INTO orders (id, order_number, items, total, status, payment_status, order_type, table_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [
+            orderId,
+            newOrderNumber,
+            JSON.stringify(orderItems),
+            Number(computedTotal.toFixed(2)),
+            orderStatus,
+            'pending',
+            orderType,
+            tableId,
+          ]
+        );
+      }
     }
 
     cache.delete(CACHE_KEYS.TODAY_SALES);

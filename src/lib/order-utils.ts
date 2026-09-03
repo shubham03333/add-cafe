@@ -22,3 +22,4 @@ export function mapOrderRow(row: any) {
 
 export const ORDER_LIST_COLUMNS = `o.id, o.order_number, o.items, o.total, o.status, o.payment_status, o.payment_mode, o.order_time, o.order_type, o.table_id`;
 export const ORDER_LIST_COLUMNS_WITH_SOURCE = `${ORDER_LIST_COLUMNS}, o.external_source`;
+export const ORDER_LIST_COLUMNS_WITH_GUEST = `${ORDER_LIST_COLUMNS_WITH_SOURCE}, o.customer_name, o.customer_phone`;

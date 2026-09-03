@@ -17,22 +17,37 @@ export async function GET(
 ) {
   const { id: orderId } = await params;
 
-  // 1️⃣ Fetch order from DB
-  const rows = await executeQuery(
-    'SELECT o.order_number, o.order_time, o.total, o.items, o.order_type, t.table_code, t.table_name FROM orders o LEFT JOIN tables_master t ON o.table_id = t.id WHERE o.id = ?',
-    [orderId]
-  ) as any[];
+  let order: any;
+  try {
+    const rows = await executeQuery(
+      'SELECT o.order_number, o.order_time, o.total, o.items, o.order_type, o.customer_name, o.customer_phone, t.table_code, t.table_name FROM orders o LEFT JOIN tables_master t ON o.table_id = t.id WHERE o.id = ?',
+      [orderId]
+    ) as any[];
+    if (!rows || rows.length === 0) {
+      return new Response(
+        JSON.stringify({
+          "0": { type: 0, content: 'Order not found', align: 1 }
+        }),
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    order = rows[0];
+  } catch {
+    const rows = await executeQuery(
+      'SELECT o.order_number, o.order_time, o.total, o.items, o.order_type, t.table_code, t.table_name FROM orders o LEFT JOIN tables_master t ON o.table_id = t.id WHERE o.id = ?',
+      [orderId]
+    ) as any[];
 
-  if (!rows || rows.length === 0) {
-    return new Response(
-      JSON.stringify({
-        "0": { type: 0, content: 'Order not found', align: 1 }
-      }),
-      { headers: { 'Content-Type': 'application/json' } }
-    );
+    if (!rows || rows.length === 0) {
+      return new Response(
+        JSON.stringify({
+          "0": { type: 0, content: 'Order not found', align: 1 }
+        }),
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+    }
+    order = rows[0];
   }
-
-  const order = rows[0];
 
   // 2️⃣ Parse items safely
   let items: any[] = [];
@@ -140,6 +155,21 @@ export async function GET(
     commands.push({
       type: 0,
       content: `Type    : ${order.order_type.replace('_', ' ')}`,
+      align: 1
+    });
+  }
+
+  if (order.customer_name) {
+    commands.push({
+      type: 0,
+      content: `Name    : ${order.customer_name}`,
+      align: 1
+    });
+  }
+  if (order.customer_phone) {
+    commands.push({
+      type: 0,
+      content: `Mobile  : ${order.customer_phone}`,
       align: 1
     });
   }

@@ -5,13 +5,28 @@ import { fireCatalogWebhook } from '@/lib/integration-webhooks';
 
 export async function GET() {
   try {
-    const rows = await executeQuery(
-      `SELECT id, order_number, items, total, status, payment_status, order_time, order_type, table_id
-       FROM orders
-       WHERE status = 'preparing'
-       ORDER BY order_time ASC
-       LIMIT 150`
-    ) as any[];
+    let rows: any[];
+    try {
+      rows = await executeQuery(
+        `SELECT id, order_number, items, total, status, payment_status, order_time, order_type, table_id, customer_name, customer_phone
+         FROM orders
+         WHERE status = 'preparing'
+         ORDER BY order_time ASC
+         LIMIT 150`
+      ) as any[];
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!(message.includes('Unknown column') || message.includes('ER_BAD_FIELD_ERROR'))) {
+        throw error;
+      }
+      rows = await executeQuery(
+        `SELECT id, order_number, items, total, status, payment_status, order_time, order_type, table_id
+         FROM orders
+         WHERE status = 'preparing'
+         ORDER BY order_time ASC
+         LIMIT 150`
+      ) as any[];
+    }
 
     return NextResponse.json((rows || []).map(mapOrderRow));
   } catch (error) {
