@@ -4,7 +4,7 @@ import { UpdateOrderRequest } from '@/types';
 import { getTodayDateString } from '@/lib/timezone-dynamic';
 import { adjustMenuStock } from '@/lib/stock';
 import { cache, CACHE_KEYS } from '@/lib/cache';
-import { fireCatalogWebhook } from '@/lib/integration-webhooks';
+import { fireCatalogWebhook, notifyCatalogOrderChange } from '@/lib/integration-webhooks';
 
 export async function PUT(
   request: NextRequest,
@@ -107,6 +107,7 @@ export async function DELETE(
   try {
     const { id } = await params;
 
+    await notifyCatalogOrderChange(id, 'order.deleted');
     await executeQuery('DELETE FROM orders WHERE id = ?', [id]);
     cache.delete('tables_occupancy');
     cache.delete(CACHE_KEYS.TODAY_SALES);

@@ -8,7 +8,7 @@ function isUnknownColumn(error: unknown) {
   return message.includes('Unknown column') || message.includes('ER_BAD_FIELD_ERROR');
 }
 
-export type CatalogWebhookEvent = 'order.updated' | 'order.paid';
+export type CatalogWebhookEvent = 'order.updated' | 'order.paid' | 'order.deleted';
 
 export async function notifyCatalogOrderChange(orderId: string, event: CatalogWebhookEvent) {
   const webhookUrl = (process.env.CATALOG_WEBHOOK_URL || '').trim();
@@ -37,7 +37,7 @@ export async function notifyCatalogOrderChange(orderId: string, event: CatalogWe
       event,
       order_id: order.id,
       order_number: order.order_number,
-      status: order.status,
+      status: event === 'order.deleted' ? 'cancelled' : order.status,
       payment_status: order.payment_status || 'pending',
       items: parseOrderItems(order.items),
       total: Number(order.total),
