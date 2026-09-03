@@ -13,5 +13,11 @@
   "env": {
     "NODE_ENV": "production"
   },
-  "regions": ["iad1"]
+  "regions": ["iad1"],
+  "crons": [
+    {
+      "path": "/api/cron/junk-purge",
+      "schedule": "0 2 * * *"
+    }
+  ]
 }

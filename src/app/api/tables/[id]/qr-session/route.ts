@@ -10,7 +10,7 @@ export async function POST(
     const { id } = await params;
     const tableId = Number(id);
     if (!Number.isInteger(tableId) || tableId < 1) {
-      return NextResponse.json({ error: 'Invalid table' }, 400);
+      return NextResponse.json({ error: 'Invalid table' }, { status: 400 });
     }
 
     const body = await request.json().catch(() => ({}));
@@ -21,7 +21,7 @@ export async function POST(
       [tableId]
     ) as any[];
     if (!existing?.length) {
-      return NextResponse.json({ error: 'Table not found' }, 404);
+      return NextResponse.json({ error: 'Table not found' }, { status: 404 });
     }
 
     if (action === 'close') {
@@ -34,9 +34,9 @@ export async function POST(
       return NextResponse.json({ ok: true, qr_session_open: true });
     }
 
-    return NextResponse.json({ error: 'action must be open or close' }, 400);
+    return NextResponse.json({ error: 'action must be open or close' }, { status: 400 });
   } catch (error) {
     console.error('QR session update failed', error);
-    return NextResponse.json({ error: 'Failed to update table QR session' }, 500);
+    return NextResponse.json({ error: 'Failed to update table QR session' }, { status: 500 });
   }
 }
