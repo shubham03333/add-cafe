@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { CreateOrderRequest } from '@/types';
 import { getTodayDateString } from '@/lib/timezone-dynamic';
 import { getSqlDayRange } from '@/lib/date-range';
-import { mapOrderRow, ORDER_LIST_COLUMNS } from '@/lib/order-utils';
+import { mapOrderRow, ORDER_LIST_COLUMNS, ORDER_LIST_COLUMNS_WITH_SOURCE } from '@/lib/order-utils';
 import { cache, CACHE_KEYS } from '@/lib/cache';
 import { markQrSessionAccepted } from '@/lib/qr-table-session';
 
@@ -55,50 +55,62 @@ export async function GET(request: NextRequest) {
 
     const whereSql = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
 
-    const selectSql = `
-      SELECT ${ORDER_LIST_COLUMNS}, t.table_code, t.table_name
-      FROM orders o
-      LEFT JOIN tables_master t ON o.table_id = t.id
-      ${whereSql}
-    `;
+    const runList = async (columns: string) => {
+      const selectSql = `
+        SELECT ${columns}, t.table_code, t.table_name
+        FROM orders o
+        LEFT JOIN tables_master t ON o.table_id = t.id
+        ${whereSql}
+      `;
 
-    if (paginated && !orderNumber) {
-      const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
-      const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
-      const offset = (page - 1) * limit;
+      if (paginated && !orderNumber) {
+        const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+        const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '50', 10)));
+        const offset = (page - 1) * limit;
 
-      const countQuery = `SELECT COUNT(*) as total FROM orders o ${whereSql}`;
-      const [countResult, rows] = await Promise.all([
-        executeQuery(countQuery, params) as Promise<any[]>,
-        executeQuery(
-          `${selectSql} ORDER BY o.order_time DESC LIMIT ? OFFSET ?`,
-          [...params, limit, offset]
-        ) as Promise<any[]>,
-      ]);
+        const countQuery = `SELECT COUNT(*) as total FROM orders o ${whereSql}`;
+        const [countResult, rows] = await Promise.all([
+          executeQuery(countQuery, params) as Promise<any[]>,
+          executeQuery(
+            `${selectSql} ORDER BY o.order_time DESC LIMIT ? OFFSET ?`,
+            [...params, limit, offset]
+          ) as Promise<any[]>,
+        ]);
 
-      const totalOrders = countResult[0]?.total || 0;
-      const totalPages = Math.ceil(totalOrders / limit);
+        const totalOrders = countResult[0]?.total || 0;
+        const totalPages = Math.ceil(totalOrders / limit);
 
-      return NextResponse.json({
-        orders: (rows || []).map(mapOrderRow),
-        pagination: {
-          currentPage: page,
-          totalPages,
-          totalOrders,
-          limit,
-          hasNextPage: page < totalPages,
-          hasPrevPage: page > 1
-        }
-      });
+        return NextResponse.json({
+          orders: (rows || []).map(mapOrderRow),
+          pagination: {
+            currentPage: page,
+            totalPages,
+            totalOrders,
+            limit,
+            hasNextPage: page < totalPages,
+            hasPrevPage: page > 1
+          }
+        });
+      }
+
+      const limit = loadAll ? 1000 : 200;
+      const rows = await executeQuery(
+        `${selectSql} ORDER BY o.order_time ${loadAll ? 'ASC' : 'DESC'} LIMIT ?`,
+        [...params, limit]
+      ) as any[];
+
+      return NextResponse.json((rows || []).map(mapOrderRow));
+    };
+
+    try {
+      return await runList(ORDER_LIST_COLUMNS_WITH_SOURCE);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message.includes('Unknown column') || message.includes('ER_BAD_FIELD_ERROR')) {
+        return await runList(ORDER_LIST_COLUMNS);
+      }
+      throw error;
     }
-
-    const limit = loadAll ? 1000 : 200;
-    const rows = await executeQuery(
-      `${selectSql} ORDER BY o.order_time ${loadAll ? 'ASC' : 'DESC'} LIMIT ?`,
-      [...params, limit]
-    ) as any[];
-
-    return NextResponse.json((rows || []).map(mapOrderRow));
   } catch (error) {
     console.error('Error fetching orders:', error);
     return NextResponse.json(

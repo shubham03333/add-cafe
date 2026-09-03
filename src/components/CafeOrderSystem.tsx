@@ -9,6 +9,44 @@ import { SyncManager } from '@/lib/syncManager';
 import GoogleReviewQR from './GoogleReviewQR';
 import PendingOrdersSidebar from './PendingOrdersSidebar';
 
+function isCatalogTableOrder(order: Order) {
+  const source = String(order.external_source || '').toLowerCase();
+  if (source === 'digital_catalog') return true;
+  return order.status === 'pending' && order.order_type === 'DINE_IN';
+}
+
+function announceCatalogOrder(order: Order) {
+  const number = String(order.order_number || '').padStart(3, '0');
+  const table = order.table_code || order.table_name || 'the table';
+  const phrase = `Order ${number} placed from table ${table}`;
+  try {
+    const AudioCtx = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (AudioCtx) {
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 880;
+      gain.gain.value = 0.12;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.2);
+      window.setTimeout(() => ctx.close().catch(() => undefined), 400);
+    }
+  } catch {
+    // audio optional
+  }
+  try {
+    window.speechSynthesis.cancel();
+    const voice = new SpeechSynthesisUtterance(phrase);
+    voice.rate = 1;
+    voice.lang = 'en-IN';
+    window.speechSynthesis.speak(voice);
+  } catch {
+    // speech optional
+  }
+}
 
 const CafeOrderSystem = () => {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -77,6 +115,9 @@ const CafeOrderSystem = () => {
   // Sidebar state management
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingSidebarOpen, setPendingSidebarOpen] = useState(false);
+  const [qrAlert, setQrAlert] = useState<{ orderNumber: string; table: string } | null>(null);
+  const seenOrderIds = useRef<Set<string> | null>(null);
+  const audioReady = useRef(false);
   const [selectedTable, setSelectedTable] = useState<any>(null);
   const [tableOrders, setTableOrders] = useState<{ [tableId: string]: OrderItem[] }>({});
 
@@ -381,6 +422,25 @@ const CafeOrderSystem = () => {
     // Handle paginated response structure
     const ordersArray = Array.isArray(data.orders) ? data.orders : Array.isArray(data) ? data : []; // Ensure it's always an array
     setOrders(ordersArray);
+
+    if (seenOrderIds.current === null) {
+      seenOrderIds.current = new Set(ordersArray.map((order: Order) => order.id));
+    } else {
+      const fresh = ordersArray.filter(
+        (order: Order) => !seenOrderIds.current!.has(order.id) && isCatalogTableOrder(order)
+      );
+      for (const order of fresh) {
+        announceCatalogOrder(order);
+        setQrAlert({
+          orderNumber: String(order.order_number).padStart(3, '0'),
+          table: order.table_code || order.table_name || 'table',
+        });
+        setPendingSidebarOpen(true);
+      }
+      for (const order of ordersArray) {
+        seenOrderIds.current.add(order.id);
+      }
+    }
 
     // Calculate pending orders count (orders that are not served)
     const pendingOrders = ordersArray.filter((order: Order) => order.status !== 'served');
@@ -1049,6 +1109,16 @@ const CafeOrderSystem = () => {
   return (
     <div
       className={`min-h-screen bg-gray-100 p-0.5 sm:p-1 md:p-2 lg:p-4 xl:p-6 w-full max-w-full mx-auto transition-all duration-300 overflow-x-hidden ${buildingOrder.length > 0 ? 'pb-28 md:pb-6' : ''}`}
+      onClick={() => {
+        if (!audioReady.current) {
+          audioReady.current = true;
+          try {
+            window.speechSynthesis.getVoices();
+          } catch {
+            // ignore
+          }
+        }
+      }}
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
@@ -1059,6 +1129,22 @@ const CafeOrderSystem = () => {
           You are offline. New orders will sync when the connection returns.
         </div>
       )}
+
+      {qrAlert ? (
+        <button
+          type="button"
+          className="mb-2 w-full rounded-lg bg-amber-400 px-4 py-3 text-left text-gray-900 shadow-lg print:hidden"
+          onClick={() => {
+            setPendingSidebarOpen(true);
+            setQrAlert(null);
+          }}
+        >
+          <span className="block text-xs font-semibold uppercase tracking-wide">QR table order</span>
+          <span className="block text-lg font-black">
+            Order #{qrAlert.orderNumber} placed from {qrAlert.table}
+          </span>
+        </button>
+      ) : null}
 
       {/* Header */}
       <div className="bg-gradient-to-r from-red-600 to-red-800 rounded-lg shadow-lg p-2 sm:p-3 md:p-4 mb-2 sm:mb-3 md:mb-4 transition-all duration-300">

@@ -75,6 +75,7 @@ export interface Order {
   table_name?: string;
   table_id?: number;
   order_type?: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
+  external_source?: string | null;
 }
 
 export interface CreateOrderRequest {
