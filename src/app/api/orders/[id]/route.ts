@@ -5,6 +5,7 @@ import { getTodayDateString } from '@/lib/timezone-dynamic';
 import { adjustMenuStock } from '@/lib/stock';
 import { cache, CACHE_KEYS } from '@/lib/cache';
 import { fireCatalogWebhook, notifyCatalogOrderChange } from '@/lib/integration-webhooks';
+import { closeQrSessionForOrder, markQrSessionAcceptedForOrder } from '@/lib/qr-table-session';
 
 export async function PUT(
   request: NextRequest,
@@ -50,6 +51,14 @@ export async function PUT(
       `UPDATE orders SET ${updateFields.join(', ')} WHERE id = ?`,
       values
     );
+
+    if (body.status === 'preparing' || body.status === 'ready') {
+      await markQrSessionAcceptedForOrder(id);
+    }
+
+    if (body.payment_status === 'paid') {
+      await closeQrSessionForOrder(id);
+    }
 
     if (body.status === 'served') {
       const orderRows = await executeQuery(

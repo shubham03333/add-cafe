@@ -7,6 +7,7 @@ import { cache, CACHE_KEYS } from '@/lib/cache';
 import { integrationJson, requireIntegrationAuth } from '@/lib/integration-auth';
 import { sqlRows } from '@/lib/sql-rows';
 import { findActiveTableId } from '@/lib/find-active-table';
+import { decideCatalogDineInOrder } from '@/lib/qr-table-session';
 
 function isUnknownColumn(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -77,6 +78,8 @@ export async function POST(request: NextRequest) {
     }
 
     let tableId = null;
+    let orderStatus: 'pending' | 'preparing' = 'preparing';
+    const source = String(body.source || 'digital_catalog').slice(0, 50);
     if (orderType === 'DINE_IN') {
       const tableCode = String(body.table_code || '').trim();
       if (!tableCode) {
@@ -85,6 +88,13 @@ export async function POST(request: NextRequest) {
       tableId = await findActiveTableId(tableCode);
       if (!tableId) {
         return integrationJson(request, { error: 'Invalid or inactive table' }, 400);
+      }
+      if (source === 'digital_catalog') {
+        const decision = await decideCatalogDineInOrder(tableId);
+        if (!decision.ok) {
+          return integrationJson(request, { error: decision.error, code: decision.code }, 403);
+        }
+        orderStatus = decision.status;
       }
     }
 
@@ -151,7 +161,6 @@ export async function POST(request: NextRequest) {
     const lastOrderNumber = Number(lastOrderResult[0]?.last_order_number || 0);
     const newOrderNumber = (lastOrderNumber + 1).toString().padStart(3, '0');
 
-    const source = String(body.source || 'digital_catalog').slice(0, 50);
     const customerRef = body.customer_ref ? String(body.customer_ref).slice(0, 100) : null;
     const createdAt = new Date().toISOString();
 
@@ -165,7 +174,7 @@ export async function POST(request: NextRequest) {
           newOrderNumber,
           JSON.stringify(orderItems),
           Number(computedTotal.toFixed(2)),
-          'preparing',
+          orderStatus,
           'pending',
           orderType,
           tableId,
@@ -183,7 +192,7 @@ export async function POST(request: NextRequest) {
           newOrderNumber,
           JSON.stringify(orderItems),
           Number(computedTotal.toFixed(2)),
-          'preparing',
+          orderStatus,
           'pending',
           orderType,
           tableId,
@@ -199,7 +208,7 @@ export async function POST(request: NextRequest) {
     const response = {
       id: orderId,
       order_number: newOrderNumber,
-      status: 'preparing',
+      status: orderStatus,
       created_at: createdAt,
     };
     await storeIdempotentResponse(idempotencyKey, response);

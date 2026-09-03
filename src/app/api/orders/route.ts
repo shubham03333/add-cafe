@@ -6,6 +6,7 @@ import { getTodayDateString } from '@/lib/timezone-dynamic';
 import { getSqlDayRange } from '@/lib/date-range';
 import { mapOrderRow, ORDER_LIST_COLUMNS } from '@/lib/order-utils';
 import { cache, CACHE_KEYS } from '@/lib/cache';
+import { markQrSessionAccepted } from '@/lib/qr-table-session';
 
 const VALID_STATUSES = ['pending', 'preparing', 'ready', 'served', 'cancelled'];
 
@@ -163,6 +164,10 @@ export async function POST(request: NextRequest) {
     cache.delete(CACHE_KEYS.TODAY_SALES);
     cache.delete(CACHE_KEYS.TOTAL_REVENUE);
     cache.delete('tables_occupancy');
+
+    if (tableId) {
+      await markQrSessionAccepted(tableId);
+    }
 
     return NextResponse.json({ id: orderId, success: true, order_number: newOrderNumber });
   } catch (error) {

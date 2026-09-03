@@ -3,6 +3,7 @@ import { executeQuery } from '@/lib/db';
 import { cache } from '@/lib/cache';
 import { integrationJson, requireIntegrationAuth } from '@/lib/integration-auth';
 import { sqlRows } from '@/lib/sql-rows';
+import { ensureQrSessionSchema } from '@/lib/qr-table-session';
 
 const CACHE_KEY = 'integration_tables';
 
@@ -11,6 +12,7 @@ export async function GET(request: NextRequest) {
   if (denied) return denied;
 
   try {
+    await ensureQrSessionSchema();
     const cached = cache.get(CACHE_KEY);
     if (cached) return integrationJson(request, cached);
 
@@ -20,7 +22,8 @@ export async function GET(request: NextRequest) {
         t.table_code,
         t.table_name,
         t.capacity,
-        CASE WHEN occ.table_id IS NOT NULL THEN 1 ELSE 0 END as is_occupied
+        CASE WHEN occ.table_id IS NOT NULL THEN 1 ELSE 0 END as is_occupied,
+        CASE WHEN qr.table_id IS NOT NULL THEN 1 ELSE 0 END as qr_session_open
       FROM tables_master t
       LEFT JOIN (
         SELECT DISTINCT table_id
@@ -29,6 +32,12 @@ export async function GET(request: NextRequest) {
           AND status NOT IN ('served', 'cancelled')
           AND table_id IS NOT NULL
       ) occ ON occ.table_id = t.id
+      LEFT JOIN (
+        SELECT DISTINCT table_id
+        FROM table_qr_sessions
+        WHERE closed_at IS NULL
+          AND expires_at > NOW()
+      ) qr ON qr.table_id = t.id
       WHERE t.is_active = 1
       ORDER BY
         CASE
@@ -45,6 +54,7 @@ export async function GET(request: NextRequest) {
       table_name: row.table_name,
       capacity: row.capacity,
       is_occupied: Boolean(row.is_occupied),
+      qr_session_open: Boolean(row.qr_session_open),
     }));
 
     const payload = { tables, synced_at: new Date().toISOString() };

@@ -185,6 +185,7 @@ const CafeOrderSystem = () => {
 
     const ordersPollingInterval = setInterval(() => {
       fetchOrders();
+      fetchTables();
     }, 5000);
 
     const salesPollingInterval = setInterval(() => {
@@ -536,8 +537,6 @@ const CafeOrderSystem = () => {
       });
 
       if (!response.ok) throw new Error('Failed to update order');
-
-      // For served orders, immediately update local state for instant UI feedback
       // and also force a refresh to ensure consistency with the backend
       if (status === 'served') {
         setOrders(prevOrders => prevOrders.filter(order => order.id !== orderId));
@@ -554,6 +553,25 @@ const CafeOrderSystem = () => {
       
     } catch (err) {
       setError('Failed to update order');
+      console.error(err);
+    }
+  };
+
+  const acceptQrOrder = async (order: Order) => {
+    await updateOrderStatus(order.id, 'preparing');
+  };
+
+  const updateTableQrSession = async (table: Table, action: 'open' | 'close') => {
+    try {
+      const response = await fetch(`/api/tables/${table.id}/qr-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      if (!response.ok) throw new Error('Failed to update QR session');
+      await fetchTables();
+    } catch (err) {
+      setError('Failed to update table QR ordering');
       console.error(err);
     }
   };
@@ -1713,7 +1731,29 @@ const CafeOrderSystem = () => {
               </div>
 
               {/* Action Buttons at Bottom */}
-              <div className="flex gap-3 justify-center print:hidden mt-2">
+              <div className="flex gap-3 justify-center print:hidden mt-2 flex-wrap">
+                {viewingOrder.status === 'pending' ? (
+                  <button
+                    onClick={() => {
+                      void acceptQrOrder(viewingOrder);
+                      closeOrderPopup();
+                    }}
+                    className="flex-1 px-4 py-2 bg-amber-500 text-white rounded-lg font-medium"
+                  >
+                    Accept QR order
+                  </button>
+                ) : null}
+                {viewingOrder.order_type === 'DINE_IN' && viewingOrder.table_code ? (
+                  <button
+                    onClick={() => {
+                      const table = tables.find((item) => item.table_code === viewingOrder.table_code);
+                      if (table) void updateTableQrSession(table, 'close');
+                    }}
+                    className="px-3 py-2 bg-gray-800 text-white rounded-lg font-medium text-sm"
+                  >
+                    Stop QR
+                  </button>
+                ) : null}
 {/* for prod use below  */}
 <button
   onClick={() => {
@@ -2055,6 +2095,7 @@ const CafeOrderSystem = () => {
         onOrderClick={handleOrderClick}
         onEditOrder={editOrder}
         onServeOrder={openPaymentModeModal}
+        onAcceptOrder={acceptQrOrder}
         onDeleteOrder={openConfirmModal}
         onRemoveItem={removeItemFromOrder}
       />
@@ -2113,34 +2154,36 @@ const CafeOrderSystem = () => {
                     );
 
                     return (
-                      <button
+                      <div
                         key={table.id}
-                        onClick={() => {
-                          if (hasPendingOrder) {
-                            // Find and open the bill popup for this table's pending order
-                            const pendingOrder = orders.find(order =>
-                              order.table_code === table.table_code && order.status !== 'served'
-                            );
-                            if (pendingOrder) {
-                              handleOrderClick(pendingOrder);
-                              setSidebarOpen(false);
-                            }
-                          } else {
-                            setSelectedTable(table);
-                            setSelectedOrderType('DINE_IN');
-                            setBuildingOrder([]);
-                            setSidebarOpen(false);
-                          }
-                        }}
                         className={`relative p-4 rounded-xl border-2 transition-all duration-200 ${
                           hasPendingOrder
-                            ? 'bg-red-100 border-red-500 cursor-pointer hover:bg-red-200'
+                            ? 'bg-red-100 border-red-500'
                             : isSelected
                             ? 'bg-blue-100 border-blue-500 shadow-md'
-                            : 'bg-white border-gray-300 hover:border-blue-400 hover:scale-105 shadow-sm hover:shadow-md'
+                            : 'bg-white border-gray-300 shadow-sm'
                         }`}
                       >
-                        <div className="text-center">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (hasPendingOrder) {
+                              const pendingOrder = orders.find(order =>
+                                order.table_code === table.table_code && order.status !== 'served'
+                              );
+                              if (pendingOrder) {
+                                handleOrderClick(pendingOrder);
+                                setSidebarOpen(false);
+                              }
+                            } else {
+                              setSelectedTable(table);
+                              setSelectedOrderType('DINE_IN');
+                              setBuildingOrder([]);
+                              setSidebarOpen(false);
+                            }
+                          }}
+                          className="w-full text-center"
+                        >
                           <div className="flex items-center justify-center gap-1 mb-2">
                             <Users className={`w-4 h-4 ${hasPendingOrder ? 'text-red-600' : 'text-gray-600'}`} />
                             <span className={`text-sm font-medium ${hasPendingOrder ? 'text-red-900' : 'text-gray-900'}`}>
@@ -2153,8 +2196,22 @@ const CafeOrderSystem = () => {
                           <div className={`text-xs mt-1 ${hasPendingOrder ? 'text-red-700 font-medium' : 'text-gray-500'}`}>
                             {hasPendingOrder ? 'Occupied - Order Pending' : `Table ${table.table_code}`}
                           </div>
-                        </div>
-                      </button>
+                          {table.qr_session_open ? (
+                            <span className="mt-1 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-800">
+                              QR open
+                            </span>
+                          ) : null}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void updateTableQrSession(table, table.qr_session_open ? 'close' : 'open');
+                          }}
+                          className="mt-2 w-full rounded-lg bg-gray-900 px-2 py-1 text-[10px] font-semibold text-white"
+                        >
+                          {table.qr_session_open ? 'Stop QR' : 'Start QR'}
+                        </button>
+                      </div>
                     );
                   })}
               </div>

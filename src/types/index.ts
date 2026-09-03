@@ -73,6 +73,7 @@ export interface Order {
   updated_time?: string;
   table_code?: string;
   table_name?: string;
+  table_id?: number;
   order_type?: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
 }
 
@@ -176,4 +177,5 @@ export interface Table {
   capacity: number;
   is_active: boolean;
   is_occupied?: boolean;
+  qr_session_open?: boolean;
 }

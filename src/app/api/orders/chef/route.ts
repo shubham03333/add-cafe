@@ -8,7 +8,7 @@ export async function GET() {
     const rows = await executeQuery(
       `SELECT id, order_number, items, total, status, payment_status, order_time, order_type, table_id
        FROM orders
-       WHERE status IN ('pending', 'preparing')
+       WHERE status = 'preparing'
        ORDER BY order_time ASC
        LIMIT 150`
     ) as any[];
