@@ -64,9 +64,6 @@ export async function POST(request: NextRequest) {
       return integrationJson(request, { error: 'idempotency_key is required (max 64 chars)' }, 400);
     }
 
-    const existing = await readIdempotentResponse(idempotencyKey);
-    if (existing) return integrationJson(request, existing);
-
     const validOrderTypes = ['DINE_IN', 'TAKEAWAY', 'DELIVERY'];
     const orderType = body.order_type;
     if (!orderType || !validOrderTypes.includes(orderType)) {
@@ -78,37 +75,33 @@ export async function POST(request: NextRequest) {
       return integrationJson(request, { error: 'items are required' }, 400);
     }
 
-    let tableId = null;
-    let orderStatus: 'pending' | 'preparing' = 'preparing';
-    const source = String(body.source || 'digital_catalog').slice(0, 50);
-    if (orderType === 'DINE_IN') {
-      const tableCode = String(body.table_code || '').trim();
-      if (!tableCode) {
-        return integrationJson(request, { error: 'table_code is required for DINE_IN orders' }, 400);
-      }
-      tableId = await findActiveTableId(tableCode);
-      if (!tableId) {
-        return integrationJson(request, { error: 'Invalid or inactive table' }, 400);
-      }
-      if (source === 'digital_catalog') {
-        const decision = await decideCatalogDineInOrder(tableId);
-        if (!decision.ok) {
-          return integrationJson(request, { error: decision.error, code: decision.code }, 403);
-        }
-        orderStatus = decision.status;
-      }
-    }
-
     const ids = items.map((item) => Number(item.id)).filter((id) => Number.isInteger(id) && id > 0);
     if (ids.length !== items.length) {
       return integrationJson(request, { error: 'Each item needs a valid numeric id' }, 400);
     }
 
+    const source = String(body.source || 'digital_catalog').slice(0, 50);
+    const tableCode = orderType === 'DINE_IN' ? String(body.table_code || '').trim() : '';
+    if (orderType === 'DINE_IN' && !tableCode) {
+      return integrationJson(request, { error: 'table_code is required for DINE_IN orders' }, 400);
+    }
+
     const placeholders = ids.map(() => '?').join(',');
-    const menuRows = sqlRows(await executeQuery(
-      `SELECT id, name, price, is_available FROM menu_items WHERE id IN (${placeholders})`,
-      ids
-    ));
+    const [existing, tableId, menuQuery] = await Promise.all([
+      readIdempotentResponse(idempotencyKey),
+      orderType === 'DINE_IN' ? findActiveTableId(tableCode) : Promise.resolve(null),
+      executeQuery(
+        `SELECT id, name, price, is_available FROM menu_items WHERE id IN (${placeholders})`,
+        ids
+      ),
+    ]);
+    if (existing) return integrationJson(request, existing);
+
+    if (orderType === 'DINE_IN' && !tableId) {
+      return integrationJson(request, { error: 'Invalid or inactive table' }, 400);
+    }
+
+    const menuRows = sqlRows(menuQuery);
     const menuById = new Map(menuRows.map((row) => [Number(row.id), row]));
 
     let computedTotal = 0;
@@ -150,24 +143,35 @@ export async function POST(request: NextRequest) {
       }];
     });
 
+    let orderStatus: 'pending' | 'preparing' = 'preparing';
+    const [decision, newOrderNumber] = await Promise.all([
+      orderType === 'DINE_IN' && source === 'digital_catalog' && tableId
+        ? decideCatalogDineInOrder(tableId)
+        : Promise.resolve({ ok: true as const, status: 'preparing' as const }),
+      (async () => {
+        const today = await getTodayDateString();
+        const { start, end } = getSqlDayRange(today);
+        const lastOrderResult = sqlRows(await executeQuery(
+          `SELECT MAX(CAST(order_number AS UNSIGNED)) AS last_order_number
+           FROM orders
+           WHERE order_time >= ? AND order_time < ?`,
+          [start, end]
+        ));
+        return (Number(lastOrderResult[0]?.last_order_number || 0) + 1).toString().padStart(3, '0');
+      })(),
+      ensureOrderGuestColumns(),
+    ]);
+    if (!decision.ok) {
+      return integrationJson(request, { error: decision.error, code: decision.code }, 403);
+    }
+    orderStatus = decision.status;
+
     const orderId = uuidv4();
-    const today = await getTodayDateString();
-    const { start, end } = getSqlDayRange(today);
-    const lastOrderResult = sqlRows(await executeQuery(
-      `SELECT MAX(CAST(order_number AS UNSIGNED)) AS last_order_number
-       FROM orders
-       WHERE order_time >= ? AND order_time < ?`,
-      [start, end]
-    ));
-    const lastOrderNumber = Number(lastOrderResult[0]?.last_order_number || 0);
-    const newOrderNumber = (lastOrderNumber + 1).toString().padStart(3, '0');
 
     const customerRef = body.customer_ref ? String(body.customer_ref).slice(0, 100) : null;
     const customerName = sanitizeGuestName(body.customer_name);
     const customerPhone = sanitizeGuestPhone(body.customer_phone);
     const createdAt = new Date().toISOString();
-
-    await ensureOrderGuestColumns();
 
     try {
       await executeQuery(

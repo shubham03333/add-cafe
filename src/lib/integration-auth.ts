@@ -5,7 +5,7 @@ type Bucket = { count: number; resetAt: number };
 
 const hits = new Map<string, Bucket>();
 const WINDOW_MS = 60_000;
-const LIMIT = 60;
+const LIMIT = 300;
 
 function prune(now: number) {
   if (hits.size < 2000) return;
@@ -27,12 +27,6 @@ function rateLimit(ip: string) {
   }
   bucket.count += 1;
   return { ok: true as const };
-}
-
-function getClientIp(request: NextRequest) {
-  const forwarded = request.headers.get('x-forwarded-for');
-  if (forwarded) return forwarded.split(',')[0]?.trim() || 'unknown';
-  return request.headers.get('x-real-ip') || 'unknown';
 }
 
 function safeEqual(given: string, expected: string) {
@@ -69,19 +63,6 @@ export function integrationJson(request: NextRequest, body: unknown, status = 20
 }
 
 export function requireIntegrationAuth(request: NextRequest): NextResponse | null {
-  const ip = getClientIp(request);
-  const limited = rateLimit(ip);
-  if (!limited.ok) {
-    return new NextResponse(JSON.stringify({ error: 'Too many requests' }), {
-      status: 429,
-      headers: {
-        ...integrationCorsHeaders(request),
-        'Content-Type': 'application/json',
-        'Retry-After': String(Math.ceil((limited.retryAfterMs ?? WINDOW_MS) / 1000)),
-      },
-    });
-  }
-
   const expected = (process.env.INTEGRATION_API_KEY || '').trim();
   if (!expected) {
     console.error('[integration] INTEGRATION_API_KEY is not configured');
@@ -94,6 +75,18 @@ export function requireIntegrationAuth(request: NextRequest): NextResponse | nul
 
   if (!token || !safeEqual(token, expected)) {
     return integrationJson(request, { error: 'Unauthorized' }, 401);
+  }
+
+  const limited = rateLimit('integration-api-key');
+  if (!limited.ok) {
+    return new NextResponse(JSON.stringify({ error: 'Too many requests' }), {
+      status: 429,
+      headers: {
+        ...integrationCorsHeaders(request),
+        'Content-Type': 'application/json',
+        'Retry-After': String(Math.ceil((limited.retryAfterMs ?? WINDOW_MS) / 1000)),
+      },
+    });
   }
 
   return null;

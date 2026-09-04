@@ -10,13 +10,9 @@ function isUnknownColumn(error: unknown) {
 
 export type CatalogWebhookEvent = 'order.updated' | 'order.paid' | 'order.deleted';
 
-export async function notifyCatalogOrderChange(orderId: string, event: CatalogWebhookEvent) {
-  const webhookUrl = (process.env.CATALOG_WEBHOOK_URL || '').trim();
-  const secret = (process.env.INTEGRATION_WEBHOOK_SECRET || '').trim();
-  if (!webhookUrl || !secret) return;
-
+async function loadOrderForWebhook(orderId: string) {
   try {
-    const rows = sqlRows(await executeQuery(
+    return sqlRows(await executeQuery(
       `SELECT o.id, o.order_number, o.status, o.payment_status, o.items, o.total,
               o.updated_time, o.external_source, o.external_ref, t.table_code
        FROM orders o
@@ -25,12 +21,33 @@ export async function notifyCatalogOrderChange(orderId: string, event: CatalogWe
        LIMIT 1`,
       [orderId]
     ));
+  } catch (error) {
+    if (!isUnknownColumn(error)) throw error;
+    return sqlRows(await executeQuery(
+      `SELECT o.id, o.order_number, o.status, o.payment_status, o.items, o.total, o.updated_time
+       FROM orders o
+       WHERE o.id = ?
+       LIMIT 1`,
+      [orderId]
+    ));
+  }
+}
+
+export async function notifyCatalogOrderChange(orderId: string, event: CatalogWebhookEvent) {
+  const webhookUrl = (process.env.CATALOG_WEBHOOK_URL || '').trim();
+  const secret = (process.env.INTEGRATION_WEBHOOK_SECRET || '').trim();
+  if (!webhookUrl || !secret) return;
+
+  try {
+    const rows = await loadOrderForWebhook(orderId);
 
     const order = rows?.[0];
     if (!order) return;
 
     const isCatalog =
-      order.external_source === 'digital_catalog' || Boolean(order.external_ref);
+      order.external_source === undefined
+        ? true
+        : order.external_source === 'digital_catalog' || Boolean(order.external_ref);
     if (!isCatalog) return;
 
     const payload = {
