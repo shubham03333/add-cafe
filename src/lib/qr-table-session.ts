@@ -78,7 +78,7 @@ async function expireStale(tableId?: number) {
 }
 
 export async function getOpenQrSession(tableId: number): Promise<SessionRow | null> {
-  await expireStale(tableId);
+  await ensureSchema();
   const rows = sqlRows(await executeQuery(
     `SELECT id, table_id, opened_at, expires_at, closed_at, last_accepted_at, opened_by
      FROM table_qr_sessions
@@ -133,6 +133,7 @@ async function insertSession(tableId: number, openedBy: 'qr' | 'staff') {
 }
 
 export async function openQrSession(tableId: number, openedBy: 'qr' | 'staff' = 'staff') {
+  await expireStale(tableId);
   const open = await getOpenQrSession(tableId);
   if (open) {
     await executeQuery(
