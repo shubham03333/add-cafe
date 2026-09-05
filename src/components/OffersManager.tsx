@@ -103,6 +103,7 @@ export default function OffersManager({ menuItems }: { menuItems: MenuItem[] }) 
         <h2 className="text-2xl font-black text-zinc-900">Offers & coupon codes</h2>
         <p className="mt-1 text-sm text-zinc-600">
           Bill % hits the whole check. Dish % hits selected items only. One use per mobile unless you raise the limit.
+          Put <span className="font-semibold">BDAY</span> in the code (example <span className="font-semibold">BDAY10</span>) so the QR menu shows it automatically on a guest&apos;s birthday. Other codes show to guests who registered with email + mobile.
         </p>
       </div>
 

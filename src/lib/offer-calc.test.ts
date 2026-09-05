@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   applyOffer,
+  inferOfferAudience,
   lineGross,
   normalizeOfferCode,
   normalizeOfferPhone,
@@ -95,4 +96,9 @@ test('min bill and inactive offers fail closed', () => {
 test('normalize code and phone', () => {
   assert.equal(normalizeOfferCode(' bday 10 '), 'BDAY10');
   assert.equal(normalizeOfferPhone('+91 98765 43210'), '9876543210');
+});
+
+test('birthday codes are inferred from BDAY in the code or name', () => {
+  assert.equal(inferOfferAudience('BDAY10', 'Birthday treat'), 'birthday');
+  assert.equal(inferOfferAudience('COFFEE20', 'Coffee happy hour'), 'registered');
 });

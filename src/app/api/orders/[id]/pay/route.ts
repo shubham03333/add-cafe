@@ -21,8 +21,16 @@ export async function POST(
     const { id } = await params;
     const body = await request.json();
     const paymentMode = body.paymentMode;
-    const offerCode = normalizeOfferCode(body.offerCode || '');
-    const phone = normalizeOfferPhone(body.customerPhone || body.customer_phone || '');
+    const orderRows = sqlRows(
+      await executeQuery(
+        'SELECT items, offer_code, customer_phone FROM orders WHERE id = ? LIMIT 1',
+        [id]
+      )
+    );
+    const offerCode = normalizeOfferCode(body.offerCode || orderRows[0]?.offer_code || '');
+    const phone = normalizeOfferPhone(
+      body.customerPhone || body.customer_phone || orderRows[0]?.customer_phone || ''
+    );
 
     if (!paymentMode || !['cash', 'online'].includes(paymentMode)) {
       return NextResponse.json(
@@ -57,8 +65,7 @@ export async function POST(
         }
       }
 
-      const rows = sqlRows(await executeQuery('SELECT items FROM orders WHERE id = ? LIMIT 1', [id]));
-      const items = parseOrderItems(rows[0]?.items);
+      const items = parseOrderItems(orderRows[0]?.items);
       const result = applyOffer(items, offer);
       if (!result.ok) {
         return NextResponse.json({ error: result.error }, { status: 400 });

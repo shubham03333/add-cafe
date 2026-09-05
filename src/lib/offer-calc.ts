@@ -63,6 +63,10 @@ export function parseMenuItemIds(raw: unknown): number[] {
   return [];
 }
 
+export function inferOfferAudience(code: string, name: string): 'birthday' | 'registered' {
+  return /bday|birthday|b['’]?day/i.test(`${code} ${name}`) ? 'birthday' : 'registered';
+}
+
 export function isOfferInWindow(offer: OfferRule, now = new Date()) {
   if (!offer.is_active) return false;
   if (offer.starts_at) {

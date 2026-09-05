@@ -886,7 +886,7 @@ const CafeOrderSystem = () => {
   // Payment mode functions
   const openPaymentModeModal = (order: Order) => {
     setOrderToServe(order);
-    setPayOfferCode('');
+    setPayOfferCode(order.offer_code || '');
     setPayPhone(order.customer_phone || '');
     setPayPreview(null);
     setPayError(null);
