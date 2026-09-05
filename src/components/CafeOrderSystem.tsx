@@ -91,6 +91,11 @@ const CafeOrderSystem = () => {
   // Payment mode selection modal state
   const [isPaymentModeModalOpen, setIsPaymentModeModalOpen] = useState(false);
   const [orderToServe, setOrderToServe] = useState<Order | null>(null);
+  const [payOfferCode, setPayOfferCode] = useState('');
+  const [payPhone, setPayPhone] = useState('');
+  const [payPreview, setPayPreview] = useState<{ gross: number; discount: number; net: number; name?: string } | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
+  const [payBusy, setPayBusy] = useState(false);
 
   // Analytics chart state
   const [showAnalytics, setShowAnalytics] = useState(false);
@@ -130,26 +135,42 @@ const CafeOrderSystem = () => {
 
   // Minimum swipe distance (in px) to trigger the gesture
   const minSwipeDistance = 50;
+  const ignorePageSwipe = useRef(false);
 
-  // Handle touch start
+  function isHorizontalScrollTouch(target: EventTarget | null) {
+    let node = target instanceof Element ? target : null;
+    while (node && node !== document.body) {
+      if (node.getAttribute('data-no-page-swipe') === 'true') return true;
+      const style = window.getComputedStyle(node);
+      const overflowX = style.overflowX;
+      if (
+        (overflowX === 'auto' || overflowX === 'scroll') &&
+        node.scrollWidth > node.clientWidth + 8
+      ) {
+        return true;
+      }
+      node = node.parentElement;
+    }
+    return false;
+  }
+
   const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEnd(null); // Reset touch end
+    ignorePageSwipe.current = isHorizontalScrollTouch(e.target);
+    setTouchEnd(null);
     setTouchStart(e.targetTouches[0].clientX);
   };
 
-  // Handle touch move
   const onTouchMove = (e: React.TouchEvent) => {
     setTouchEnd(e.targetTouches[0].clientX);
   };
 
-  // Handle touch end
   const onTouchEnd = () => {
+    if (ignorePageSwipe.current) return;
     if (!touchStart || !touchEnd) return;
 
     const distance = touchStart - touchEnd;
     const isLeftSwipe = distance > minSwipeDistance;
 
-    // Only trigger on left swipe (right to left)
     if (isLeftSwipe) {
       setPendingSidebarOpen(true);
     }
@@ -865,12 +886,21 @@ const CafeOrderSystem = () => {
   // Payment mode functions
   const openPaymentModeModal = (order: Order) => {
     setOrderToServe(order);
+    setPayOfferCode('');
+    setPayPhone(order.customer_phone || '');
+    setPayPreview(null);
+    setPayError(null);
     setIsPaymentModeModalOpen(true);
   };
 
   const closePaymentModeModal = () => {
     setIsPaymentModeModalOpen(false);
     setOrderToServe(null);
+    setPayOfferCode('');
+    setPayPhone('');
+    setPayPreview(null);
+    setPayError(null);
+    setPayBusy(false);
   };
 
   const printBill = (order: Order) => {
@@ -959,10 +989,25 @@ const CafeOrderSystem = () => {
 
           <div class="divider"></div>
 
+          ${Number(order.discount_total) > 0 ? `
+          <div class="row">
+            <span>GROSS</span>
+            <span>₹${order.gross_total ?? order.total}</span>
+          </div>
+          <div class="row">
+            <span>DISCOUNT${order.offer_code ? ` (${order.offer_code})` : ''}</span>
+            <span>-₹${order.discount_total}</span>
+          </div>
+          <div class="row bold">
+            <span>NET</span>
+            <span>₹${order.total}</span>
+          </div>
+          ` : `
           <div class="row bold">
             <span>TOTAL</span>
             <span>₹${order.total}</span>
           </div>
+          `}
 
           <div class="divider"></div>
 
@@ -987,28 +1032,75 @@ const CafeOrderSystem = () => {
 };
 
 
+  const previewPayOffer = async () => {
+    if (!orderToServe || !payOfferCode.trim()) {
+      setPayPreview(null);
+      return;
+    }
+    setPayBusy(true);
+    setPayError(null);
+    try {
+      const response = await fetch('/api/offers/preview', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: payOfferCode,
+          customer_phone: payPhone,
+          order_id: orderToServe.id,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setPayPreview(null);
+        setPayError(data.error || 'Could not apply this code');
+        return;
+      }
+      setPayPreview({
+        gross: Number(data.gross),
+        discount: Number(data.discount),
+        net: Number(data.net),
+        name: data.offer?.name,
+      });
+    } catch (err) {
+      setPayPreview(null);
+      setPayError('Could not preview offer');
+      console.error(err);
+    } finally {
+      setPayBusy(false);
+    }
+  };
+
   const handlePaymentModeSelection = async (paymentMode: 'cash' | 'online') => {
     if (!orderToServe) return;
+    setPayBusy(true);
+    setPayError(null);
 
     try {
-      // First update the payment mode
       const paymentResponse = await fetch(`/api/orders/${orderToServe.id}/pay`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ paymentMode })
+        body: JSON.stringify({
+          paymentMode,
+          offerCode: payOfferCode.trim() || undefined,
+          customerPhone: payPhone.trim() || undefined,
+        })
       });
+      const data = await paymentResponse.json().catch(() => ({}));
 
-      if (!paymentResponse.ok) throw new Error('Failed to process payment');
+      if (!paymentResponse.ok) {
+        setPayError(data.error || 'Failed to process payment');
+        return;
+      }
 
-      // Then mark the order as served
       await updateOrderStatus(orderToServe.id, 'served');
 
       closePaymentModeModal();
-      closeOrderPopup(); // Close the bill popup and return to main dashboard
+      closeOrderPopup();
     } catch (err) {
-      setError('Failed to process payment and serve order');
+      setPayError('Failed to process payment and serve order');
       console.error(err);
-      closePaymentModeModal();
+    } finally {
+      setPayBusy(false);
     }
   };
 
@@ -1257,7 +1349,7 @@ const CafeOrderSystem = () => {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 aria-label="Search menu items"
                 autoComplete="off"
-                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm text-black min-h-[44px]"
+                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base text-black min-h-[44px]"
               />
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search className="h-4 w-4 text-gray-400" aria-hidden="true" />
@@ -1292,7 +1384,13 @@ const CafeOrderSystem = () => {
           {/* Category and View Mode Filters */}
           <div className="flex flex-wrap gap-2">
             {/* Category Filter */}
-            <div className="flex overflow-x-auto gap-1 pb-1 scrollbar-hide">
+            <div
+              className="flex overflow-x-auto gap-1 pb-1 scrollbar-hide touch-pan-x overscroll-x-contain"
+              data-no-page-swipe="true"
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchMove={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => e.stopPropagation()}
+            >
               {['All', ...Array.from(new Set(menuItems.map(item => item.category).filter(cat => cat !== 'All')))].map(category => (
                 <button
                   key={category}
@@ -1405,7 +1503,7 @@ const CafeOrderSystem = () => {
                   placeholder="Search menu items..."
                   value={editOrderSearchTerm}
                   onChange={(e) => setEditOrderSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-sm text-black"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base text-black min-h-[44px]"
                 />
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <svg className="h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2039,7 +2137,7 @@ const CafeOrderSystem = () => {
       {/* Payment Mode Selection Modal */}
       {isPaymentModeModalOpen && orderToServe && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-bold text-gray-900">Select Payment Mode</h2>
               <button
@@ -2055,7 +2153,7 @@ const CafeOrderSystem = () => {
               <div className="bg-gray-50 p-4 rounded-lg mb-4">
                 <div className="flex justify-between items-center mb-2">
                   <span className="font-semibold text-gray-900">Order #{orderToServe.order_number}</span>
-                  <span className="font-bold text-lg text-red-900">₹{orderToServe.total}</span>
+                  <span className="font-bold text-lg text-red-900">₹{payPreview?.net ?? orderToServe.total}</span>
                 </div>
                 <div className="text-sm text-gray-600">
                   {orderToServe.items.map(item => (
@@ -2065,6 +2163,61 @@ const CafeOrderSystem = () => {
                     </div>
                   ))}
                 </div>
+                {payPreview ? (
+                  <div className="mt-3 border-t border-gray-200 pt-2 text-sm">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Gross</span>
+                      <span>₹{payPreview.gross}</span>
+                    </div>
+                    <div className="flex justify-between text-green-700">
+                      <span>Discount{payPreview.name ? ` (${payPreview.name})` : ''}</span>
+                      <span>-₹{payPreview.discount}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-gray-900">
+                      <span>Net</span>
+                      <span>₹{payPreview.net}</span>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mb-4 space-y-2">
+                <label className="block text-sm font-medium text-gray-800">
+                  Customer mobile
+                  <input
+                    inputMode="numeric"
+                    value={payPhone}
+                    onChange={(e) => {
+                      setPayPhone(e.target.value);
+                      setPayPreview(null);
+                    }}
+                    className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-base"
+                    placeholder="10-digit number"
+                  />
+                </label>
+                <label className="block text-sm font-medium text-gray-800">
+                  Offer code (optional)
+                  <div className="mt-1 flex gap-2">
+                    <input
+                      value={payOfferCode}
+                      onChange={(e) => {
+                        setPayOfferCode(e.target.value.toUpperCase());
+                        setPayPreview(null);
+                      }}
+                      className="min-w-0 flex-1 rounded-lg border border-gray-200 px-3 py-2 text-base"
+                      placeholder="BDAY10"
+                    />
+                    <button
+                      type="button"
+                      disabled={payBusy || !payOfferCode.trim()}
+                      onClick={() => void previewPayOffer()}
+                      className="rounded-lg bg-gray-900 px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"
+                    >
+                      Apply
+                    </button>
+                  </div>
+                </label>
+                {payError ? <p className="text-sm text-red-700">{payError}</p> : null}
               </div>
 
               <p className="text-gray-700 mb-4">
@@ -2074,14 +2227,16 @@ const CafeOrderSystem = () => {
 
             <div className="flex gap-3">
               <button
+                disabled={payBusy}
                 onClick={() => handlePaymentModeSelection('cash')}
-                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 💵 Cash
               </button>
               <button
+                disabled={payBusy}
                 onClick={() => handlePaymentModeSelection('online')}
-                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-3 px-4 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 📱 Online
               </button>

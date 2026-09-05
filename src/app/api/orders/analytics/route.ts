@@ -4,18 +4,20 @@ import { addDays } from '@/lib/date-range';
 
 const YMD = /^\d{4}-\d{2}-\d{2}$/;
 
+const IST_SHIFT = 'DATE_ADD(order_time, INTERVAL 330 MINUTE)';
+
 function periodSql(period: string) {
   switch (period) {
     case 'daily':
-      return 'DATE_FORMAT(order_time, "%Y-%m-%d")';
+      return `DATE_FORMAT(${IST_SHIFT}, "%Y-%m-%d")`;
     case 'weekly':
-      return 'DATE_FORMAT(DATE_SUB(order_time, INTERVAL WEEKDAY(order_time) DAY), "%Y-%m-%d")';
+      return `DATE_FORMAT(DATE_SUB(${IST_SHIFT}, INTERVAL WEEKDAY(${IST_SHIFT}) DAY), "%Y-%m-%d")`;
     case 'monthly':
-      return 'DATE_FORMAT(order_time, "%Y-%m")';
+      return `DATE_FORMAT(${IST_SHIFT}, "%Y-%m")`;
     case 'yearly':
-      return 'DATE_FORMAT(order_time, "%Y")';
+      return `DATE_FORMAT(${IST_SHIFT}, "%Y")`;
     default:
-      return 'DATE_FORMAT(order_time, "%Y-%m-%d %H:00:00")';
+      return `DATE_FORMAT(${IST_SHIFT}, "%Y-%m-%d %H:00:00")`;
   }
 }
 

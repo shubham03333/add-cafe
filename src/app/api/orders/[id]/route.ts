@@ -6,6 +6,7 @@ import { adjustMenuStock } from '@/lib/stock';
 import { cache, CACHE_KEYS } from '@/lib/cache';
 import { fireCatalogWebhook, notifyCatalogOrderChange } from '@/lib/integration-webhooks';
 import { closeQrSessionForOrder, markQrSessionAcceptedForOrder } from '@/lib/qr-table-session';
+import { voidRedemptionsForOrder } from '@/lib/offers-db';
 
 export async function PUT(
   request: NextRequest,
@@ -116,6 +117,7 @@ export async function DELETE(
   try {
     const { id } = await params;
 
+    await voidRedemptionsForOrder(id);
     await notifyCatalogOrderChange(id, 'order.deleted');
     await executeQuery('DELETE FROM orders WHERE id = ?', [id]);
     cache.delete('tables_occupancy');

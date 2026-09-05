@@ -12,14 +12,22 @@ export function parseOrderItems(items: unknown): any[] {
 }
 
 export function mapOrderRow(row: any) {
+  const total = Number(row.total) || 0;
+  const discount = Number(row.discount_total) || 0;
+  const gross = row.gross_total != null ? Number(row.gross_total) : total + discount;
   return {
     ...row,
     items: parseOrderItems(row.items),
     payment_status: row.payment_status || 'pending',
     payment_mode: row.payment_mode || null,
+    total,
+    gross_total: gross,
+    discount_total: discount,
+    offer_code: row.offer_code || null,
   };
 }
 
 export const ORDER_LIST_COLUMNS = `o.id, o.order_number, o.items, o.total, o.status, o.payment_status, o.payment_mode, o.order_time, o.order_type, o.table_id`;
 export const ORDER_LIST_COLUMNS_WITH_SOURCE = `${ORDER_LIST_COLUMNS}, o.external_source`;
 export const ORDER_LIST_COLUMNS_WITH_GUEST = `${ORDER_LIST_COLUMNS_WITH_SOURCE}, o.customer_name, o.customer_phone`;
+export const ORDER_LIST_COLUMNS_WITH_DISCOUNT = `${ORDER_LIST_COLUMNS_WITH_GUEST}, o.gross_total, o.discount_total, o.offer_code`;

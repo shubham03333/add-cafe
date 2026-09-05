@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Save, X, Edit2, Trash2, Plus, BarChart3, Settings, Users, LogOut, TrendingUp, Wifi, WifiOff, Table, LayoutDashboard, UtensilsCrossed, ClipboardList, Boxes, Search } from 'lucide-react';
+import { Save, X, Edit2, Trash2, Plus, BarChart3, Settings, Users, LogOut, TrendingUp, Wifi, WifiOff, Table, LayoutDashboard, UtensilsCrossed, ClipboardList, Boxes, Search, Percent } from 'lucide-react';
 import Image from 'next/image';
 import { MenuItem, Table as TableType } from '@/types';
 import SalesReport from '@/components/SalesReport';
@@ -11,6 +11,7 @@ import UserManagement from '@/components/UserManagement';
 import OrderManagement from '@/components/OrderManagement';
 import OrderAnalyticsChart from '@/components/OrderAnalyticsChart';
 import AdminOverview from '@/components/AdminOverview';
+import OffersManager from '@/components/OffersManager';
 
 const AdminControlPanel = () => {
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
@@ -496,6 +497,7 @@ const AdminControlPanel = () => {
             {[
               { id: 'overview', label: 'Overview', icon: LayoutDashboard },
               { id: 'menu', label: 'Menu', icon: UtensilsCrossed },
+              { id: 'offers', label: 'Offers', icon: Percent },
               { id: 'tables', label: 'Tables', icon: Table },
               { id: 'orders', label: 'Orders', icon: ClipboardList },
               { id: 'inventory', label: 'Inventory', icon: Boxes },
@@ -560,6 +562,8 @@ const AdminControlPanel = () => {
           />
         )}
 
+
+        {activeTab === 'offers' && <OffersManager menuItems={menuItems} />}
 
         {/* Menu Management Tab */}
         {activeTab === 'menu' && (

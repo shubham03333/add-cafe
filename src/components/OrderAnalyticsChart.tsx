@@ -2,7 +2,18 @@
 
 import React, { useState, useEffect } from 'react';
 import { BarChart3, TrendingUp, Calendar, RefreshCw, Target } from 'lucide-react';
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { parseIstWallClock } from '@/lib/display-time';
 
 interface AnalyticsData {
   time_period: string;
@@ -51,31 +62,31 @@ const OrderAnalyticsChart: React.FC<OrderAnalyticsChartProps> = ({ className = '
   }, [period, days]);
 
   const formatTimeLabel = (timePeriod: string) => {
-    const isMonthOnly = period === 'monthly' || /^\d{4}-\d{2}$/.test(timePeriod);
-    const date = new Date(isMonthOnly ? `${timePeriod}-01T00:00:00` : timePeriod);
+    const date = parseIstWallClock(timePeriod);
+    if (Number.isNaN(date.getTime())) return timePeriod;
 
     switch (period) {
       case 'hourly':
-        return date.toLocaleString('en-IN', {
+        return date.toLocaleString(undefined, {
           month: 'short',
           day: 'numeric',
           hour: 'numeric',
-          hour12: true
+          hour12: true,
         });
       case 'daily':
-        return date.toLocaleDateString('en-IN', {
+        return date.toLocaleDateString(undefined, {
           month: 'short',
-          day: 'numeric'
+          day: 'numeric',
         });
       case 'weekly':
-        return `Week of ${date.toLocaleDateString('en-IN', {
+        return `Week of ${date.toLocaleDateString(undefined, {
           month: 'short',
-          day: 'numeric'
+          day: 'numeric',
         })}`;
       case 'monthly':
-        return date.toLocaleDateString('en-IN', {
+        return date.toLocaleDateString(undefined, {
           month: 'short',
-          year: 'numeric'
+          year: 'numeric',
         });
       default:
         return timePeriod;

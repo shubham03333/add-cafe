@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { ChevronLeft, ChevronRight, Eye, RefreshCw, Filter, SortAsc, SortDesc } from 'lucide-react';
+import { formatLocalDateTime } from '@/lib/display-time';
 
 interface Order {
   id: string;
@@ -128,19 +129,7 @@ const OrderManagement = () => {
     }
   };
 
-  const formatDateTime = (dateString: string) => {
-    // Convert dateString to IST timezone string
-    const date = new Date(dateString);
-    return date.toLocaleString('en-IN', {
-      timeZone: 'Asia/Kolkata',
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true
-    });
-  };
+  const formatDateTime = (dateString: string) => formatLocalDateTime(dateString);
 
   if (loading && orders.length === 0) {
     return (
