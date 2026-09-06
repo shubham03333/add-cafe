@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { cache, CACHE_KEYS, CACHE_TTL } from '@/lib/cache';
+import { withStockoutFlag } from '@/lib/daily-stockout';
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,22 +19,31 @@ export async function GET(request: NextRequest) {
 
     let menuItems = cache.get(cacheKey);
     if (!menuItems) {
-      let query = `SELECT id, name, price, is_available, category, position, stock_quantity, unit_type
+      const withStockout = `SELECT id, name, price, is_available, category, position, stock_quantity, unit_type, stockout_date
+                   FROM menu_items WHERE 1=1`;
+      const baseQuery = `SELECT id, name, price, is_available, category, position, stock_quantity, unit_type
                    FROM menu_items WHERE 1=1`;
       const params: any[] = [];
+      let extra = '';
 
       if (category) {
-        query += ' AND category = ?';
+        extra += ' AND category = ?';
         params.push(category);
       }
 
       if (availableOnly) {
-        query += ' AND is_available = 1';
+        extra += ' AND is_available = 1';
       }
 
-      query += ' ORDER BY position ASC';
+      extra += ' ORDER BY position ASC';
 
-      menuItems = await executeQuery(query, params);
+      try {
+        menuItems = await withStockoutFlag(await executeQuery(withStockout + extra, params) as any[]);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (!(message.includes('Unknown column') || message.includes('ER_BAD_FIELD_ERROR'))) throw error;
+        menuItems = await executeQuery(baseQuery + extra, params);
+      }
       cache.set(cacheKey, menuItems, CACHE_TTL.MENU_ITEMS);
     }
 

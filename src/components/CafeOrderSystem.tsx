@@ -8,7 +8,7 @@ import { indexedDBManager } from '@/lib/indexeddb';
 import { SyncManager } from '@/lib/syncManager';
 import GoogleReviewQR from './GoogleReviewQR';
 import PendingOrdersSidebar from './PendingOrdersSidebar';
-import WaiterPhotoDishCard from './WaiterPhotoDishCard';
+import WaiterPhotoDishCard, { WaiterTextDishCard } from './WaiterPhotoDishCard';
 import { readStoredPhotoUrls, storePhotoUrls } from '@/lib/dish-photo-cache';
 
 function isCatalogTableOrder(order: Order) {
@@ -107,6 +107,9 @@ const CafeOrderSystem = () => {
   // Payment mode selection modal state
   const [isPaymentModeModalOpen, setIsPaymentModeModalOpen] = useState(false);
   const [orderToServe, setOrderToServe] = useState<Order | null>(null);
+  const [stockoutItem, setStockoutItem] = useState<MenuItem | null>(null);
+  const [stockoutBusy, setStockoutBusy] = useState(false);
+  const [stockNotice, setStockNotice] = useState<string | null>(null);
   const [payOfferCode, setPayOfferCode] = useState('');
   const [payPhone, setPayPhone] = useState('');
   const [payPreview, setPayPreview] = useState<{ gross: number; discount: number; net: number; name?: string } | null>(null);
@@ -367,6 +370,10 @@ const CafeOrderSystem = () => {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (stockoutItem) {
+          setStockoutItem(null);
+          return;
+        }
         if (isPaymentModeModalOpen) {
           closePaymentModeModal();
           return;
@@ -434,6 +441,7 @@ const CafeOrderSystem = () => {
     pendingSidebarOpen,
     sidebarOpen,
     searchOpen,
+    stockoutItem,
   ]);
 
   useEffect(() => {
@@ -446,6 +454,7 @@ const CafeOrderSystem = () => {
       if (!response.ok) throw new Error('Failed to fetch menu');
       const data = await response.json();
       setMenuItems(data);
+      setBuildingOrder((prev) => prev.filter((line) => !data.find((item: MenuItem) => item.id === line.id)?.out_of_stock));
     } catch (err) {
       setError('Failed to load menu');
       console.error(err);
@@ -543,6 +552,12 @@ const CafeOrderSystem = () => {
   };
 
   const addToOrder = (item: MenuItem, quantity: number) => {
+    if (item.out_of_stock) {
+      setStockNotice('This item is out of stock for today. Hold 3 seconds to mark it back in stock.');
+      window.setTimeout(() => setStockNotice(null), 3500);
+      return;
+    }
+    if (!selectedTable && selectedOrderType !== 'TAKEAWAY') return;
     setBuildingOrder(prev => {
       const existing = prev.find(p => p.id === item.id);
       if (existing) {
@@ -550,6 +565,44 @@ const CafeOrderSystem = () => {
       }
       return [...prev, { ...item, quantity }];
     });
+  };
+
+  const applyStockoutResult = (id: number, outOfStock: boolean, stockoutDate: string | null) => {
+    setMenuItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, out_of_stock: outOfStock, stockout_date: stockoutDate } : item
+      )
+    );
+    if (outOfStock) {
+      setBuildingOrder((prev) => prev.filter((line) => line.id !== id));
+    }
+  };
+
+  const confirmStockoutToggle = async () => {
+    if (!stockoutItem) return;
+    const nextOut = !stockoutItem.out_of_stock;
+    setStockoutBusy(true);
+    try {
+      const response = await fetch(`/api/menu/${stockoutItem.id}/stockout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ out: nextOut }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStockNotice(data.error || 'Could not update stock. Run add-daily-stockout.sql on TiDB if needed.');
+        window.setTimeout(() => setStockNotice(null), 5000);
+        return;
+      }
+      applyStockoutResult(stockoutItem.id, Boolean(data.out_of_stock), data.stockout_date ?? null);
+      setStockoutItem(null);
+    } catch (error) {
+      console.error(error);
+      setStockNotice('Could not update stock.');
+      window.setTimeout(() => setStockNotice(null), 3500);
+    } finally {
+      setStockoutBusy(false);
+    }
   };
 
   const placeOrder = async () => {
@@ -1280,6 +1333,12 @@ const CafeOrderSystem = () => {
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
+      {stockNotice && (
+        <div className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-800" role="status">
+          {stockNotice}
+        </div>
+      )}
+
       {isOffline && (
         <div className="mb-2 flex items-center justify-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-medium text-amber-900" role="status">
           <WifiOff className="h-4 w-4" aria-hidden="true" />
@@ -1784,6 +1843,7 @@ const CafeOrderSystem = () => {
                   isFavorite={favorites.includes(item.id)}
                   canOrder={Boolean(selectedTable || selectedOrderType === 'TAKEAWAY')}
                   onAdd={() => addToOrder(item, 1)}
+                  onHold={() => setStockoutItem(item)}
                   onToggleFavorite={() =>
                     setFavorites((prev) =>
                       prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id]
@@ -1791,62 +1851,22 @@ const CafeOrderSystem = () => {
                   }
                 />
               ) : (
-              <div key={item.id} className="relative">
-                <button
-                  type="button"
-                  onClick={() => addToOrder(item, 1)}
-                  disabled={!selectedTable && selectedOrderType !== 'TAKEAWAY'}
-                  className={`w-full p-1.5 sm:p-2 rounded-lg text-center font-medium min-h-[64px] sm:min-h-[72px] flex flex-col justify-center transition-all duration-300 shadow-md hover:shadow-lg ${
-                    selectedTable || selectedOrderType === 'TAKEAWAY'
-                      ? 'bg-gradient-to-br from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 cursor-pointer hover:scale-105'
-                      : 'bg-gray-400 cursor-not-allowed opacity-50'
-                  }`}
-                >
-                  <div className="font-semibold text-[10px] sm:text-[11px] leading-tight px-0.5 overflow-hidden text-white" style={{
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical'
-                  }}>{item.name}</div>
-                  <div className="text-[9px] sm:text-[10px] opacity-90 mt-0.5 bg-white/20 rounded px-0.5 py-0.5 text-white">{formatINR(item.price)}</div>
-                </button>
-
-                {isPopular && (
-                  <span className="absolute bottom-1 left-1 rounded bg-amber-400 px-1 py-0.5 text-[8px] font-bold text-amber-950 pointer-events-none">
-                    Popular
-                  </span>
-                )}
-
-                {inCartQty > 0 && (
-                  <span className="absolute bottom-1 right-6 min-w-[18px] rounded-full bg-green-600 px-1 text-center text-[10px] font-bold text-white pointer-events-none">
-                    {inCartQty}
-                  </span>
-                )}
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setFavorites(prev =>
-                      prev.includes(item.id)
-                        ? prev.filter(id => id !== item.id)
-                        : [...prev, item.id]
-                    );
-                  }}
-                  className="absolute top-1 right-1 p-1 rounded-full bg-white/80 hover:bg-white transition-colors min-h-[28px] min-w-[28px] flex items-center justify-center"
-                  title={favorites.includes(item.id) ? 'Remove from favorites' : 'Add to favorites'}
-                  aria-label={favorites.includes(item.id) ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
-                >
-                  <svg
-                    className={`w-3 h-3 ${favorites.includes(item.id) ? 'text-yellow-500 fill-current' : 'text-gray-400'}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                  </svg>
-                </button>
-              </div>
-            );
+                <WaiterTextDishCard
+                  key={item.id}
+                  item={item}
+                  inCartQty={inCartQty}
+                  isPopular={isPopular}
+                  isFavorite={favorites.includes(item.id)}
+                  canOrder={Boolean(selectedTable || selectedOrderType === 'TAKEAWAY')}
+                  onAdd={() => addToOrder(item, 1)}
+                  onHold={() => setStockoutItem(item)}
+                  onToggleFavorite={() =>
+                    setFavorites((prev) =>
+                      prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id]
+                    )
+                  }
+                />
+              );
             })}
         </div>
 
@@ -1889,6 +1909,39 @@ const CafeOrderSystem = () => {
             </button>
           </div>
           {/* <OrderAnalyticsChart /> */}
+        </div>
+      )}
+
+      {stockoutItem && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[80]">
+          <div className="bg-white rounded-lg p-5 max-w-sm w-full shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">
+              {stockoutItem.out_of_stock ? 'Mark back in stock?' : 'Out of stock for today?'}
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              {stockoutItem.out_of_stock
+                ? `${stockoutItem.name} can be ordered again by guests and waiters.`
+                : `${stockoutItem.name} will stay on the menu as sold out until you restock it or tomorrow.`}
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setStockoutItem(null)}
+                className="flex-1 min-h-[44px] rounded-lg border border-gray-300 text-sm font-medium text-gray-700"
+                disabled={stockoutBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmStockoutToggle}
+                className="flex-1 min-h-[44px] rounded-lg bg-red-700 text-sm font-medium text-white disabled:opacity-60"
+                disabled={stockoutBusy}
+              >
+                {stockoutBusy ? 'Saving…' : stockoutItem.out_of_stock ? 'Restock' : 'Mark sold out'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

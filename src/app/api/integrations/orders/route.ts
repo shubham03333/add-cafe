@@ -9,6 +9,7 @@ import { sqlRows } from '@/lib/sql-rows';
 import { findActiveTableId } from '@/lib/find-active-table';
 import { decideCatalogDineInOrder } from '@/lib/qr-table-session';
 import { ensureOrderGuestColumns, sanitizeGuestName, sanitizeGuestPhone } from '@/lib/order-guest';
+import { isOutOfStockToday } from '@/lib/daily-stockout';
 
 function isUnknownColumn(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
@@ -87,13 +88,24 @@ export async function POST(request: NextRequest) {
     }
 
     const placeholders = ids.map(() => '?').join(',');
-    const [existing, tableId, menuQuery] = await Promise.all([
+    const [existing, tableId, menuQuery, today] = await Promise.all([
       readIdempotentResponse(idempotencyKey),
       orderType === 'DINE_IN' ? findActiveTableId(tableCode) : Promise.resolve(null),
-      executeQuery(
-        `SELECT id, name, price, is_available FROM menu_items WHERE id IN (${placeholders})`,
-        ids
-      ),
+      (async () => {
+        try {
+          return await executeQuery(
+            `SELECT id, name, price, is_available, stockout_date FROM menu_items WHERE id IN (${placeholders})`,
+            ids
+          );
+        } catch (error) {
+          if (!isUnknownColumn(error)) throw error;
+          return executeQuery(
+            `SELECT id, name, price, is_available FROM menu_items WHERE id IN (${placeholders})`,
+            ids
+          );
+        }
+      })(),
+      getTodayDateString(),
     ]);
     if (existing) return integrationJson(request, existing);
 
@@ -116,6 +128,9 @@ export async function POST(request: NextRequest) {
       }
       if (!menu.is_available) {
         return integrationJson(request, { error: `Item ${menu.name} is not available` }, 400);
+      }
+      if (isOutOfStockToday(menu.stockout_date, today)) {
+        return integrationJson(request, { error: `${menu.name} is out of stock for today.` }, 400);
       }
       const quantity = Number(item.quantity);
       if (!Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
