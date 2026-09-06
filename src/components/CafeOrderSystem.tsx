@@ -1351,21 +1351,47 @@ const CafeOrderSystem = () => {
       {/* Search and Filter Controls */}
       <div className="bg-white rounded-lg shadow-lg p-2 sm:p-4 mb-2 sm:mb-4">
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
-            <span className="text-gray-600">
-              {selectedTable
-                ? `Dine-in · ${selectedTable.table_name || selectedTable.table_code}`
-                : 'Takeaway'}
-            </span>
-            <div className="flex items-center gap-2">
-            {selectedTable && (
-              <button
-                type="button"
-                onClick={handleTakeawaySelect}
-                className="text-red-700 font-medium hover:underline min-h-[32px]"
-              >
-                Switch to takeaway
-              </button>
+          <div className="flex items-center gap-2 min-h-[44px]">
+            {searchOpen ? (
+              <div className="relative min-w-0 flex-1">
+                <input
+                  ref={searchInputRef}
+                  type="search"
+                  placeholder="Search dishes..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  aria-label="Search menu items"
+                  autoComplete="off"
+                  className="w-full pl-3 pr-9 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base text-black min-h-[44px]"
+                />
+                {searchTerm ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-700"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                <span className="min-w-0 flex-1 truncate text-xs sm:text-sm text-gray-600">
+                  {selectedTable
+                    ? `Dine-in · ${selectedTable.table_name || selectedTable.table_code}`
+                    : 'Takeaway'}
+                </span>
+                {selectedTable ? (
+                  <button
+                    type="button"
+                    onClick={handleTakeawaySelect}
+                    className="shrink-0 text-red-700 font-medium hover:underline text-xs sm:text-sm min-h-[32px]"
+                  >
+                    Switch to takeaway
+                  </button>
+                ) : null}
+              </>
             )}
             <button
               type="button"
@@ -1377,19 +1403,19 @@ const CafeOrderSystem = () => {
                   setSearchOpen(true);
                 }
               }}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center ${
+              className={`shrink-0 px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center ${
                 searchOpen ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
               title={searchOpen ? 'Close search' : 'Search menu'}
               aria-label={searchOpen ? 'Close search' : 'Search menu'}
               aria-pressed={searchOpen}
             >
-              <Search className="h-4 w-4" />
+              {searchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
             </button>
             <button
               type="button"
               onClick={() => setViewMode(viewMode === 'favorites' ? 'all' : 'favorites')}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] min-w-[44px] ${
+              className={`shrink-0 px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] min-w-[44px] ${
                 viewMode === 'favorites'
                   ? 'bg-red-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -1400,37 +1426,7 @@ const CafeOrderSystem = () => {
             >
               {viewMode === 'favorites' ? '⭐' : '☆'}
             </button>
-            </div>
           </div>
-          {searchOpen ? (
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input
-                ref={searchInputRef}
-                type="search"
-                placeholder="Search menu items..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                aria-label="Search menu items"
-                autoComplete="off"
-                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base text-black min-h-[44px]"
-              />
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-gray-400" aria-hidden="true" />
-              </div>
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTerm('')}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-700"
-                  aria-label="Clear search"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-          </div>
-          ) : null}
 
           {/* Category and View Mode Filters */}
           <div className="flex flex-wrap gap-2">
@@ -1719,9 +1715,7 @@ const CafeOrderSystem = () => {
       )}
 
       {/* Menu Grid */}
-      <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4 mb-3 sm:mb-4">
-        <h2 className="font-semibold text-gray-800 text-base sm:text-lg mb-3 sm:mb-4">Menu Items</h2>
-
+      <div className="bg-white rounded-lg shadow-lg p-2 sm:p-4 mb-3 sm:mb-4">
         {/* Filtered Menu Items */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1 sm:gap-1.5 md:gap-2">
           {filteredMenuItems.map(item => {
