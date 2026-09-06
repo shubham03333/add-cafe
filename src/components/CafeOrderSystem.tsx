@@ -8,6 +8,8 @@ import { indexedDBManager } from '@/lib/indexeddb';
 import { SyncManager } from '@/lib/syncManager';
 import GoogleReviewQR from './GoogleReviewQR';
 import PendingOrdersSidebar from './PendingOrdersSidebar';
+import WaiterPhotoDishCard from './WaiterPhotoDishCard';
+import { readStoredPhotoUrls, storePhotoUrls } from '@/lib/dish-photo-cache';
 
 function isCatalogTableOrder(order: Order) {
   const source = String(order.external_source || '').toLowerCase();
@@ -130,6 +132,8 @@ const CafeOrderSystem = () => {
   const [viewMode, setViewMode] = useState<'all' | 'favorites'>('all');
   const [favorites, setFavorites] = useState<number[]>([]);
   const [favoritesReady, setFavoritesReady] = useState(false);
+  const [photoMenu, setPhotoMenu] = useState(false);
+  const [dishPhotos, setDishPhotos] = useState<Record<number, string>>({});
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Edit order modal search state
@@ -324,6 +328,36 @@ const CafeOrderSystem = () => {
     }
     setFavoritesReady(true);
   }, []);
+
+  useEffect(() => {
+    try {
+      setPhotoMenu(localStorage.getItem('adda-waiter-menu-style') === 'photo');
+      setDishPhotos(readStoredPhotoUrls());
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!photoMenu) return;
+    let cancelled = false;
+    void fetch('/api/menu/photos')
+      .then((response) => response.json())
+      .then((data) => {
+        if (cancelled || !data?.photos) return;
+        storePhotoUrls(data.photos);
+        const next: Record<number, string> = {};
+        for (const [key, value] of Object.entries(data.photos as Record<string, string>)) {
+          const id = Number(key);
+          if (Number.isInteger(id) && value) next[id] = value;
+        }
+        setDishPhotos(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [photoMenu]);
 
   useEffect(() => {
     if (!favoritesReady) return;
@@ -1284,7 +1318,25 @@ const CafeOrderSystem = () => {
       <div className="bg-gradient-to-r from-red-600 to-red-800 rounded-lg shadow-lg p-2 sm:p-3 md:p-4 mb-2 sm:mb-3 md:mb-4 transition-all duration-300">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-3 md:gap-4">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <img src="/logo.png" alt="Logo" className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20" />
+            <button
+              type="button"
+              onClick={() => {
+                setPhotoMenu((prev) => {
+                  const next = !prev;
+                  try {
+                    localStorage.setItem('adda-waiter-menu-style', next ? 'photo' : 'minimal');
+                  } catch {
+                    // ignore
+                  }
+                  return next;
+                });
+              }}
+              className="rounded-lg focus:outline-none focus:ring-2 focus:ring-white/70"
+              title={photoMenu ? 'Switch to simple menu' : 'Switch to photo menu'}
+              aria-label={photoMenu ? 'Switch to simple menu' : 'Switch to photo menu'}
+            >
+              <img src="/logo.png" alt="Adda Cafe" className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 pointer-events-none" />
+            </button>
           </div>
           <div className="flex items-center gap-0.5 flex-wrap justify-center max-w-full overflow-x-auto px-1">
             <button
@@ -1356,7 +1408,8 @@ const CafeOrderSystem = () => {
               <div className="relative min-w-0 flex-1">
                 <input
                   ref={searchInputRef}
-                  type="search"
+                  type="text"
+                  inputMode="search"
                   placeholder="Search dishes..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -1721,7 +1774,23 @@ const CafeOrderSystem = () => {
           {filteredMenuItems.map(item => {
               const inCartQty = buildingQtyById.get(item.id) || 0;
               const isPopular = popularNameSet.has(item.name.toLowerCase());
-              return (
+              return photoMenu ? (
+                <WaiterPhotoDishCard
+                  key={item.id}
+                  item={item}
+                  photoSrc={dishPhotos[item.id]}
+                  inCartQty={inCartQty}
+                  isPopular={isPopular}
+                  isFavorite={favorites.includes(item.id)}
+                  canOrder={Boolean(selectedTable || selectedOrderType === 'TAKEAWAY')}
+                  onAdd={() => addToOrder(item, 1)}
+                  onToggleFavorite={() =>
+                    setFavorites((prev) =>
+                      prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id]
+                    )
+                  }
+                />
+              ) : (
               <div key={item.id} className="relative">
                 <button
                   type="button"
