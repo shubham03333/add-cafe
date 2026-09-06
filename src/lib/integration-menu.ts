@@ -2,6 +2,8 @@ import { createHash } from 'crypto';
 import { executeQuery } from '@/lib/db';
 import { cache } from '@/lib/cache';
 import { sqlRows, type SqlRow } from '@/lib/sql-rows';
+import { isOutOfStockToday } from '@/lib/daily-stockout';
+import { getTodayDateString } from '@/lib/timezone-dynamic';
 
 const INTEGRATION_MENU_TTL = 60;
 
@@ -20,9 +22,10 @@ export type IntegrationMenuItem = {
   position: number | null;
   image_url: string | null;
   updated_at: string | null;
+  out_of_stock: boolean;
 };
 
-function mapRow(row: SqlRow): IntegrationMenuItem {
+function mapRow(row: SqlRow, today: string): IntegrationMenuItem {
   return {
     id: Number(row.id),
     name: String(row.name),
@@ -33,10 +36,12 @@ function mapRow(row: SqlRow): IntegrationMenuItem {
     position: row.position == null ? null : Number(row.position),
     image_url: row.image_url == null ? null : String(row.image_url),
     updated_at: row.updated_at ? String(row.updated_at) : row.created_at ? String(row.created_at) : null,
+    out_of_stock: isOutOfStockToday(row.stockout_date, today),
   };
 }
 
 async function queryMenu(includeUnavailable: boolean, since?: string) {
+  const today = await getTodayDateString();
   const params: unknown[] = [];
   let where = 'WHERE 1=1';
   if (!includeUnavailable) {
@@ -48,7 +53,7 @@ async function queryMenu(includeUnavailable: boolean, since?: string) {
   }
 
   const extraQuery = `
-    SELECT id, name, description, price, category, is_available, position, image_url,
+    SELECT id, name, description, price, category, is_available, position, image_url, stockout_date,
            COALESCE(updated_at, created_at) AS updated_at
     FROM menu_items
     ${where}
@@ -63,11 +68,11 @@ async function queryMenu(includeUnavailable: boolean, since?: string) {
 
   try {
     const rows = sqlRows(await executeQuery(extraQuery, params));
-    return rows.map(mapRow);
+    return rows.map((row) => mapRow(row, today));
   } catch (error) {
     if (!isUnknownColumn(error)) throw error;
     const rows = sqlRows(await executeQuery(baseQuery, params));
-    return rows.map(mapRow);
+    return rows.map((row) => mapRow(row, today));
   }
 }
 

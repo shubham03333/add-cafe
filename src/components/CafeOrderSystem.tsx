@@ -8,11 +8,26 @@ import { indexedDBManager } from '@/lib/indexeddb';
 import { SyncManager } from '@/lib/syncManager';
 import GoogleReviewQR from './GoogleReviewQR';
 import PendingOrdersSidebar from './PendingOrdersSidebar';
+import WaiterPhotoDishCard, { WaiterTextDishCard } from './WaiterPhotoDishCard';
+import { readStoredPhotoUrls, storePhotoUrls } from '@/lib/dish-photo-cache';
 
 function isCatalogTableOrder(order: Order) {
   const source = String(order.external_source || '').toLowerCase();
   if (source === 'digital_catalog') return true;
   return order.status === 'pending' && order.order_type === 'DINE_IN';
+}
+
+function cafeCalendarDate(offsetDays = 0) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const year = Number(parts.find((part) => part.type === 'year')?.value);
+  const month = Number(parts.find((part) => part.type === 'month')?.value);
+  const day = Number(parts.find((part) => part.type === 'day')?.value);
+  return new Date(Date.UTC(year, month - 1, day + offsetDays)).toISOString().slice(0, 10);
 }
 
 function announceCatalogOrder(order: Order) {
@@ -74,6 +89,7 @@ const CafeOrderSystem = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [salesReport, setSalesReport] = useState<any>(null);
+  const [reportLoading, setReportLoading] = useState(false);
 
   // Payment revenue modal state
   const [isPaymentRevenueModalOpen, setIsPaymentRevenueModalOpen] = useState(false);
@@ -91,6 +107,9 @@ const CafeOrderSystem = () => {
   // Payment mode selection modal state
   const [isPaymentModeModalOpen, setIsPaymentModeModalOpen] = useState(false);
   const [orderToServe, setOrderToServe] = useState<Order | null>(null);
+  const [stockoutItem, setStockoutItem] = useState<MenuItem | null>(null);
+  const [stockoutBusy, setStockoutBusy] = useState(false);
+  const [stockNotice, setStockNotice] = useState<string | null>(null);
   const [payOfferCode, setPayOfferCode] = useState('');
   const [payPhone, setPayPhone] = useState('');
   const [payPreview, setPayPreview] = useState<{ gross: number; discount: number; net: number; name?: string } | null>(null);
@@ -111,10 +130,13 @@ const CafeOrderSystem = () => {
 
   // New UI state for compact menu display
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'all' | 'favorites'>('all');
   const [favorites, setFavorites] = useState<number[]>([]);
   const [favoritesReady, setFavoritesReady] = useState(false);
+  const [photoMenu, setPhotoMenu] = useState(false);
+  const [dishPhotos, setDishPhotos] = useState<Record<number, string>>({});
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   // Edit order modal search state
@@ -311,6 +333,36 @@ const CafeOrderSystem = () => {
   }, []);
 
   useEffect(() => {
+    try {
+      setPhotoMenu(localStorage.getItem('adda-waiter-menu-style') === 'photo');
+      setDishPhotos(readStoredPhotoUrls());
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!photoMenu) return;
+    let cancelled = false;
+    void fetch('/api/menu/photos')
+      .then((response) => response.json())
+      .then((data) => {
+        if (cancelled || !data?.photos) return;
+        storePhotoUrls(data.photos);
+        const next: Record<number, string> = {};
+        for (const [key, value] of Object.entries(data.photos as Record<string, string>)) {
+          const id = Number(key);
+          if (Number.isInteger(id) && value) next[id] = value;
+        }
+        setDishPhotos(next);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [photoMenu]);
+
+  useEffect(() => {
     if (!favoritesReady) return;
     localStorage.setItem('adda-menu-favorites', JSON.stringify(favorites));
   }, [favorites, favoritesReady]);
@@ -318,6 +370,10 @@ const CafeOrderSystem = () => {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (stockoutItem) {
+          setStockoutItem(null);
+          return;
+        }
         if (isPaymentModeModalOpen) {
           closePaymentModeModal();
           return;
@@ -352,6 +408,12 @@ const CafeOrderSystem = () => {
         }
         if (sidebarOpen) {
           setSidebarOpen(false);
+          return;
+        }
+        if (searchOpen) {
+          setSearchOpen(false);
+          setSearchTerm('');
+          return;
         }
         return;
       }
@@ -362,7 +424,7 @@ const CafeOrderSystem = () => {
           return;
         }
         event.preventDefault();
-        searchInputRef.current?.focus();
+        setSearchOpen(true);
       }
     };
 
@@ -378,7 +440,13 @@ const CafeOrderSystem = () => {
     isPaymentRevenueModalOpen,
     pendingSidebarOpen,
     sidebarOpen,
+    searchOpen,
+    stockoutItem,
   ]);
+
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
 
   const fetchMenu = async () => {
     try {
@@ -386,6 +454,7 @@ const CafeOrderSystem = () => {
       if (!response.ok) throw new Error('Failed to fetch menu');
       const data = await response.json();
       setMenuItems(data);
+      setBuildingOrder((prev) => prev.filter((line) => !data.find((item: MenuItem) => item.id === line.id)?.out_of_stock));
     } catch (err) {
       setError('Failed to load menu');
       console.error(err);
@@ -483,6 +552,12 @@ const CafeOrderSystem = () => {
   };
 
   const addToOrder = (item: MenuItem, quantity: number) => {
+    if (item.out_of_stock) {
+      setStockNotice('This item is out of stock for today. Hold 3 seconds to mark it back in stock.');
+      window.setTimeout(() => setStockNotice(null), 3500);
+      return;
+    }
+    if (!selectedTable && selectedOrderType !== 'TAKEAWAY') return;
     setBuildingOrder(prev => {
       const existing = prev.find(p => p.id === item.id);
       if (existing) {
@@ -490,6 +565,44 @@ const CafeOrderSystem = () => {
       }
       return [...prev, { ...item, quantity }];
     });
+  };
+
+  const applyStockoutResult = (id: number, outOfStock: boolean, stockoutDate: string | null) => {
+    setMenuItems((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, out_of_stock: outOfStock, stockout_date: stockoutDate } : item
+      )
+    );
+    if (outOfStock) {
+      setBuildingOrder((prev) => prev.filter((line) => line.id !== id));
+    }
+  };
+
+  const confirmStockoutToggle = async () => {
+    if (!stockoutItem) return;
+    const nextOut = !stockoutItem.out_of_stock;
+    setStockoutBusy(true);
+    try {
+      const response = await fetch(`/api/menu/${stockoutItem.id}/stockout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ out: nextOut }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        setStockNotice(data.error || 'Could not update stock. Run add-daily-stockout.sql on TiDB if needed.');
+        window.setTimeout(() => setStockNotice(null), 5000);
+        return;
+      }
+      applyStockoutResult(stockoutItem.id, Boolean(data.out_of_stock), data.stockout_date ?? null);
+      setStockoutItem(null);
+    } catch (error) {
+      console.error(error);
+      setStockNotice('Could not update stock.');
+      window.setTimeout(() => setStockNotice(null), 3500);
+    } finally {
+      setStockoutBusy(false);
+    }
   };
 
   const placeOrder = async () => {
@@ -798,32 +911,34 @@ const CafeOrderSystem = () => {
   };
 
   // Sales report functions
-  const generateSalesReport = async () => {
+  const generateSalesReport = async (day = cafeCalendarDate(-1)) => {
+    setReportLoading(true);
     try {
-      const response = await fetch(`/api/sales-report?startDate=${startDate}&endDate=${endDate}`);
+      const response = await fetch(`/api/sales-report?startDate=${day}&endDate=${day}`);
       if (!response.ok) throw new Error('Failed to generate sales report');
       const data = await response.json();
       setSalesReport(data);
     } catch (err) {
-      setError('Failed to generate sales report');
+      setError('Failed to load yesterday’s sales');
       console.error(err);
+    } finally {
+      setReportLoading(false);
     }
   };
 
   const openReportModal = () => {
+    const yesterday = cafeCalendarDate(-1);
+    setStartDate(yesterday);
+    setEndDate(yesterday);
+    setSalesReport(null);
     setIsReportModalOpen(true);
-    // Set default date range to current month
-    const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    
-    setStartDate(firstDay.toISOString().split('T')[0]);
-    setEndDate(lastDay.toISOString().split('T')[0]);
+    void generateSalesReport(yesterday);
   };
 
   const closeReportModal = () => {
     setIsReportModalOpen(false);
     setSalesReport(null);
+    setReportLoading(false);
   };
 
   // Payment revenue modal functions
@@ -1218,6 +1333,12 @@ const CafeOrderSystem = () => {
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
+      {stockNotice && (
+        <div className="mb-2 rounded-lg bg-red-50 px-3 py-2 text-sm font-medium text-red-800" role="status">
+          {stockNotice}
+        </div>
+      )}
+
       {isOffline && (
         <div className="mb-2 flex items-center justify-center gap-2 rounded-lg bg-amber-100 px-3 py-2 text-sm font-medium text-amber-900" role="status">
           <WifiOff className="h-4 w-4" aria-hidden="true" />
@@ -1256,7 +1377,25 @@ const CafeOrderSystem = () => {
       <div className="bg-gradient-to-r from-red-600 to-red-800 rounded-lg shadow-lg p-2 sm:p-3 md:p-4 mb-2 sm:mb-3 md:mb-4 transition-all duration-300">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-3 md:gap-4">
           <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-            <img src="/logo.png" alt="Logo" className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20" />
+            <button
+              type="button"
+              onClick={() => {
+                setPhotoMenu((prev) => {
+                  const next = !prev;
+                  try {
+                    localStorage.setItem('adda-waiter-menu-style', next ? 'photo' : 'minimal');
+                  } catch {
+                    // ignore
+                  }
+                  return next;
+                });
+              }}
+              className="rounded-lg focus:outline-none focus:ring-2 focus:ring-white/70"
+              title={photoMenu ? 'Switch to simple menu' : 'Switch to photo menu'}
+              aria-label={photoMenu ? 'Switch to simple menu' : 'Switch to photo menu'}
+            >
+              <img src="/logo.png" alt="Adda Cafe" className="w-10 h-10 sm:w-14 sm:h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 pointer-events-none" />
+            </button>
           </div>
           <div className="flex items-center gap-0.5 flex-wrap justify-center max-w-full overflow-x-auto px-1">
             <button
@@ -1309,8 +1448,8 @@ const CafeOrderSystem = () => {
               type="button"
               onClick={openReportModal}
               className="p-1.5 sm:p-2.5 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
-              title="Sales Report"
-              aria-label="Open sales report"
+              title="Yesterday's sales"
+              aria-label="Open yesterday's sales"
             >
               <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
@@ -1323,62 +1462,82 @@ const CafeOrderSystem = () => {
       {/* Search and Filter Controls */}
       <div className="bg-white rounded-lg shadow-lg p-2 sm:p-4 mb-2 sm:mb-4">
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2 text-xs sm:text-sm">
-            <span className="text-gray-600">
-              {selectedTable
-                ? `Dine-in · ${selectedTable.table_name || selectedTable.table_code}`
-                : 'Takeaway'}
-            </span>
-            {selectedTable && (
-              <button
-                type="button"
-                onClick={handleTakeawaySelect}
-                className="text-red-700 font-medium hover:underline min-h-[32px]"
-              >
-                Switch to takeaway
-              </button>
-            )}
-          </div>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <input
-                ref={searchInputRef}
-                type="search"
-                placeholder="Search menu items..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                aria-label="Search menu items"
-                autoComplete="off"
-                className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base text-black min-h-[44px]"
-              />
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Search className="h-4 w-4 text-gray-400" aria-hidden="true" />
+          <div className="flex items-center gap-2 min-h-[44px]">
+            {searchOpen ? (
+              <div className="relative min-w-0 flex-1">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  inputMode="search"
+                  placeholder="Search dishes..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  aria-label="Search menu items"
+                  autoComplete="off"
+                  className="w-full pl-3 pr-9 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-transparent text-base text-black min-h-[44px]"
+                />
+                {searchTerm ? (
+                  <button
+                    type="button"
+                    onClick={() => setSearchTerm('')}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-700"
+                    aria-label="Clear search"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                ) : null}
               </div>
-              {searchTerm && (
-                <button
-                  type="button"
-                  onClick={() => setSearchTerm('')}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-700"
-                  aria-label="Clear search"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              )}
-            </div>
-      <button
-        type="button"
-        onClick={() => setViewMode(viewMode === 'favorites' ? 'all' : 'favorites')}
-        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] min-w-[44px] ${
-          viewMode === 'favorites'
-            ? 'bg-red-600 text-white'
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-        }`}
-        title={viewMode === 'favorites' ? 'Show All Items' : 'Show Favorites'}
-        aria-pressed={viewMode === 'favorites'}
-        aria-label={viewMode === 'favorites' ? 'Show all items' : 'Show favorites'}
-      >
-        {viewMode === 'favorites' ? '⭐' : '☆'}
-      </button>
+            ) : (
+              <>
+                <span className="min-w-0 flex-1 truncate text-xs sm:text-sm text-gray-600">
+                  {selectedTable
+                    ? `Dine-in · ${selectedTable.table_name || selectedTable.table_code}`
+                    : 'Takeaway'}
+                </span>
+                {selectedTable ? (
+                  <button
+                    type="button"
+                    onClick={handleTakeawaySelect}
+                    className="shrink-0 text-red-700 font-medium hover:underline text-xs sm:text-sm min-h-[32px]"
+                  >
+                    Switch to takeaway
+                  </button>
+                ) : null}
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (searchOpen) {
+                  setSearchOpen(false);
+                  setSearchTerm('');
+                } else {
+                  setSearchOpen(true);
+                }
+              }}
+              className={`shrink-0 px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center ${
+                searchOpen ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              title={searchOpen ? 'Close search' : 'Search menu'}
+              aria-label={searchOpen ? 'Close search' : 'Search menu'}
+              aria-pressed={searchOpen}
+            >
+              {searchOpen ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode(viewMode === 'favorites' ? 'all' : 'favorites')}
+              className={`shrink-0 px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] min-w-[44px] ${
+                viewMode === 'favorites'
+                  ? 'bg-red-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              title={viewMode === 'favorites' ? 'Show All Items' : 'Show Favorites'}
+              aria-pressed={viewMode === 'favorites'}
+              aria-label={viewMode === 'favorites' ? 'Show all items' : 'Show favorites'}
+            >
+              {viewMode === 'favorites' ? '⭐' : '☆'}
+            </button>
           </div>
 
           {/* Category and View Mode Filters */}
@@ -1668,71 +1827,46 @@ const CafeOrderSystem = () => {
       )}
 
       {/* Menu Grid */}
-      <div className="bg-white rounded-lg shadow-lg p-3 sm:p-4 mb-3 sm:mb-4">
-        <h2 className="font-semibold text-gray-800 text-base sm:text-lg mb-3 sm:mb-4">Menu Items</h2>
-
+      <div className="bg-white rounded-lg shadow-lg p-2 sm:p-4 mb-3 sm:mb-4">
         {/* Filtered Menu Items */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-1 sm:gap-1.5 md:gap-2">
           {filteredMenuItems.map(item => {
               const inCartQty = buildingQtyById.get(item.id) || 0;
               const isPopular = popularNameSet.has(item.name.toLowerCase());
-              return (
-              <div key={item.id} className="relative">
-                <button
-                  type="button"
-                  onClick={() => addToOrder(item, 1)}
-                  disabled={!selectedTable && selectedOrderType !== 'TAKEAWAY'}
-                  className={`w-full p-1.5 sm:p-2 rounded-lg text-center font-medium min-h-[64px] sm:min-h-[72px] flex flex-col justify-center transition-all duration-300 shadow-md hover:shadow-lg ${
-                    selectedTable || selectedOrderType === 'TAKEAWAY'
-                      ? 'bg-gradient-to-br from-red-600 to-red-800 hover:from-red-700 hover:to-red-900 cursor-pointer hover:scale-105'
-                      : 'bg-gray-400 cursor-not-allowed opacity-50'
-                  }`}
-                >
-                  <div className="font-semibold text-[10px] sm:text-[11px] leading-tight px-0.5 overflow-hidden text-white" style={{
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical'
-                  }}>{item.name}</div>
-                  <div className="text-[9px] sm:text-[10px] opacity-90 mt-0.5 bg-white/20 rounded px-0.5 py-0.5 text-white">{formatINR(item.price)}</div>
-                </button>
-
-                {isPopular && (
-                  <span className="absolute bottom-1 left-1 rounded bg-amber-400 px-1 py-0.5 text-[8px] font-bold text-amber-950 pointer-events-none">
-                    Popular
-                  </span>
-                )}
-
-                {inCartQty > 0 && (
-                  <span className="absolute bottom-1 right-6 min-w-[18px] rounded-full bg-green-600 px-1 text-center text-[10px] font-bold text-white pointer-events-none">
-                    {inCartQty}
-                  </span>
-                )}
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setFavorites(prev =>
-                      prev.includes(item.id)
-                        ? prev.filter(id => id !== item.id)
-                        : [...prev, item.id]
-                    );
-                  }}
-                  className="absolute top-1 right-1 p-1 rounded-full bg-white/80 hover:bg-white transition-colors min-h-[28px] min-w-[28px] flex items-center justify-center"
-                  title={favorites.includes(item.id) ? 'Remove from favorites' : 'Add to favorites'}
-                  aria-label={favorites.includes(item.id) ? `Remove ${item.name} from favorites` : `Add ${item.name} to favorites`}
-                >
-                  <svg
-                    className={`w-3 h-3 ${favorites.includes(item.id) ? 'text-yellow-500 fill-current' : 'text-gray-400'}`}
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                  </svg>
-                </button>
-              </div>
-            );
+              return photoMenu ? (
+                <WaiterPhotoDishCard
+                  key={item.id}
+                  item={item}
+                  photoSrc={dishPhotos[item.id]}
+                  inCartQty={inCartQty}
+                  isPopular={isPopular}
+                  isFavorite={favorites.includes(item.id)}
+                  canOrder={Boolean(selectedTable || selectedOrderType === 'TAKEAWAY')}
+                  onAdd={() => addToOrder(item, 1)}
+                  onHold={() => setStockoutItem(item)}
+                  onToggleFavorite={() =>
+                    setFavorites((prev) =>
+                      prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id]
+                    )
+                  }
+                />
+              ) : (
+                <WaiterTextDishCard
+                  key={item.id}
+                  item={item}
+                  inCartQty={inCartQty}
+                  isPopular={isPopular}
+                  isFavorite={favorites.includes(item.id)}
+                  canOrder={Boolean(selectedTable || selectedOrderType === 'TAKEAWAY')}
+                  onAdd={() => addToOrder(item, 1)}
+                  onHold={() => setStockoutItem(item)}
+                  onToggleFavorite={() =>
+                    setFavorites((prev) =>
+                      prev.includes(item.id) ? prev.filter((id) => id !== item.id) : [...prev, item.id]
+                    )
+                  }
+                />
+              );
             })}
         </div>
 
@@ -1744,6 +1878,7 @@ const CafeOrderSystem = () => {
               type="button"
               onClick={() => {
                 setSearchTerm('');
+                setSearchOpen(false);
                 setSelectedCategory(null);
                 setViewMode('all');
               }}
@@ -1777,12 +1912,56 @@ const CafeOrderSystem = () => {
         </div>
       )}
 
+      {stockoutItem && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[80]">
+          <div className="bg-white rounded-lg p-5 max-w-sm w-full shadow-xl">
+            <h2 className="text-lg font-bold text-gray-900">
+              {stockoutItem.out_of_stock ? 'Mark back in stock?' : 'Out of stock for today?'}
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              {stockoutItem.out_of_stock
+                ? `${stockoutItem.name} can be ordered again by guests and waiters.`
+                : `${stockoutItem.name} will stay on the menu as sold out until you restock it or tomorrow.`}
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setStockoutItem(null)}
+                className="flex-1 min-h-[44px] rounded-lg border border-gray-300 text-sm font-medium text-gray-700"
+                disabled={stockoutBusy}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmStockoutToggle}
+                className="flex-1 min-h-[44px] rounded-lg bg-red-700 text-sm font-medium text-white disabled:opacity-60"
+                disabled={stockoutBusy}
+              >
+                {stockoutBusy ? 'Saving…' : stockoutItem.out_of_stock ? 'Restock' : 'Mark sold out'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sales Report Modal */}
       {isReportModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto shadow-xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Sales Report</h2>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Yesterday’s sales</h2>
+                {startDate ? (
+                  <p className="text-sm text-gray-500">
+                    {new Date(`${startDate}T12:00:00`).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </p>
+                ) : null}
+              </div>
               <button
                 onClick={closeReportModal}
                 className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
@@ -1792,35 +1971,9 @@ const CafeOrderSystem = () => {
               </button>
             </div>
 
-            <div className="mb-4">
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
-                  />
-                </div>
-              </div>
-              
-              <button
-                onClick={generateSalesReport}
-                className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded font-medium transition-colors"
-              >
-                Generate Report
-              </button>
-            </div>
+            {reportLoading ? (
+              <p className="py-8 text-center text-sm text-gray-500">Loading yesterday’s sales…</p>
+            ) : null}
 
             {salesReport && (
               <div className="border-t border-gray-200 pt-4">
@@ -1836,22 +1989,6 @@ const CafeOrderSystem = () => {
                     <div className="text-sm text-red-800">Total Orders</div>
                     <div className="text-lg font-bold text-red-900">{salesReport.total_orders || 0}</div>
                   </div>
-                  
-                  {salesReport.daily_sales && salesReport.daily_sales.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-2">Daily Breakdown:</h4>
-                      <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                        <div className="space-y-2">
-                          {salesReport.daily_sales.map((day: any) => (
-                            <div key={day.date} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                              <span className="text-sm text-gray-700">{new Date(day.date).toLocaleDateString()}</span>
-                              <span className="font-medium text-gray-900">₹{day.revenue}</span>
-                            </div>
-                        ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
                   
                   {salesReport.top_items && salesReport.top_items.length > 0 && (
                     <div>

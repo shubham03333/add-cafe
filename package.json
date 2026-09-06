@@ -14,7 +14,7 @@
     "daily-sales-reset": "node scripts/daily-sales-reset.js",
     "purge-junk": "node scripts/purge-junk.js",
     "test-daily-reset": "node scripts/test-daily-reset.js",
-    "test": "npx --yes tsx --test src/lib/offer-calc.test.ts",
+    "test": "npx --yes tsx --test src/lib/offer-calc.test.ts src/lib/daily-stockout.test.ts",
     "test:integration": "node scripts/test-integration-api.js"
   },
   "dependencies": {
