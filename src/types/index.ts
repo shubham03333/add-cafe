@@ -78,6 +78,9 @@ export interface Order {
   external_source?: string | null;
   customer_name?: string | null;
   customer_phone?: string | null;
+  gross_total?: number | null;
+  discount_total?: number | null;
+  offer_code?: string | null;
 }
 
 export interface CreateOrderRequest {

@@ -171,13 +171,14 @@ export async function POST(request: NextRequest) {
     const customerRef = body.customer_ref ? String(body.customer_ref).slice(0, 100) : null;
     const customerName = sanitizeGuestName(body.customer_name);
     const customerPhone = sanitizeGuestPhone(body.customer_phone);
+    const offerCode = String(body.offer_code || body.offerCode || '').trim().toUpperCase().replace(/\s+/g, '').slice(0, 32) || null;
     const createdAt = new Date().toISOString();
 
     try {
       await executeQuery(
         `INSERT INTO orders
-          (id, order_number, items, total, status, payment_status, order_type, table_id, external_source, external_ref, idempotency_key, customer_name, customer_phone)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (id, order_number, items, total, status, payment_status, order_type, table_id, external_source, external_ref, idempotency_key, customer_name, customer_phone, offer_code)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           orderId,
           newOrderNumber,
@@ -192,6 +193,7 @@ export async function POST(request: NextRequest) {
           idempotencyKey,
           customerName || null,
           customerPhone || null,
+          offerCode,
         ]
       );
     } catch (error) {

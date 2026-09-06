@@ -7,6 +7,7 @@ import { getSqlDayRange } from '@/lib/date-range';
 import {
   mapOrderRow,
   ORDER_LIST_COLUMNS,
+  ORDER_LIST_COLUMNS_WITH_DISCOUNT,
   ORDER_LIST_COLUMNS_WITH_GUEST,
   ORDER_LIST_COLUMNS_WITH_SOURCE,
 } from '@/lib/order-utils';
@@ -110,12 +111,19 @@ export async function GET(request: NextRequest) {
     };
 
     try {
-      return await runList(ORDER_LIST_COLUMNS_WITH_GUEST);
+      return await runList(ORDER_LIST_COLUMNS_WITH_DISCOUNT);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (!(message.includes('Unknown column') || message.includes('ER_BAD_FIELD_ERROR'))) {
         throw error;
       }
+      try {
+        return await runList(ORDER_LIST_COLUMNS_WITH_GUEST);
+      } catch (guestError) {
+        const guestMessage = guestError instanceof Error ? guestError.message : String(guestError);
+        if (!(guestMessage.includes('Unknown column') || guestMessage.includes('ER_BAD_FIELD_ERROR'))) {
+          throw guestError;
+        }
       try {
         return await runList(ORDER_LIST_COLUMNS_WITH_SOURCE);
       } catch (inner) {
@@ -124,6 +132,7 @@ export async function GET(request: NextRequest) {
           return await runList(ORDER_LIST_COLUMNS);
         }
         throw inner;
+      }
       }
     }
   } catch (error) {
