@@ -15,6 +15,19 @@ function isCatalogTableOrder(order: Order) {
   return order.status === 'pending' && order.order_type === 'DINE_IN';
 }
 
+function cafeCalendarDate(offsetDays = 0) {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Kolkata',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const year = Number(parts.find((part) => part.type === 'year')?.value);
+  const month = Number(parts.find((part) => part.type === 'month')?.value);
+  const day = Number(parts.find((part) => part.type === 'day')?.value);
+  return new Date(Date.UTC(year, month - 1, day + offsetDays)).toISOString().slice(0, 10);
+}
+
 function announceCatalogOrder(order: Order) {
   const number = String(order.order_number || '').padStart(3, '0');
   const table = order.table_code || order.table_name || 'the table';
@@ -74,6 +87,7 @@ const CafeOrderSystem = () => {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [salesReport, setSalesReport] = useState<any>(null);
+  const [reportLoading, setReportLoading] = useState(false);
 
   // Payment revenue modal state
   const [isPaymentRevenueModalOpen, setIsPaymentRevenueModalOpen] = useState(false);
@@ -111,6 +125,7 @@ const CafeOrderSystem = () => {
 
   // New UI state for compact menu display
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchOpen, setSearchOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'all' | 'favorites'>('all');
   const [favorites, setFavorites] = useState<number[]>([]);
@@ -352,6 +367,12 @@ const CafeOrderSystem = () => {
         }
         if (sidebarOpen) {
           setSidebarOpen(false);
+          return;
+        }
+        if (searchOpen) {
+          setSearchOpen(false);
+          setSearchTerm('');
+          return;
         }
         return;
       }
@@ -362,7 +383,7 @@ const CafeOrderSystem = () => {
           return;
         }
         event.preventDefault();
-        searchInputRef.current?.focus();
+        setSearchOpen(true);
       }
     };
 
@@ -378,7 +399,12 @@ const CafeOrderSystem = () => {
     isPaymentRevenueModalOpen,
     pendingSidebarOpen,
     sidebarOpen,
+    searchOpen,
   ]);
+
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus();
+  }, [searchOpen]);
 
   const fetchMenu = async () => {
     try {
@@ -798,32 +824,34 @@ const CafeOrderSystem = () => {
   };
 
   // Sales report functions
-  const generateSalesReport = async () => {
+  const generateSalesReport = async (day = cafeCalendarDate(-1)) => {
+    setReportLoading(true);
     try {
-      const response = await fetch(`/api/sales-report?startDate=${startDate}&endDate=${endDate}`);
+      const response = await fetch(`/api/sales-report?startDate=${day}&endDate=${day}`);
       if (!response.ok) throw new Error('Failed to generate sales report');
       const data = await response.json();
       setSalesReport(data);
     } catch (err) {
-      setError('Failed to generate sales report');
+      setError('Failed to load yesterday’s sales');
       console.error(err);
+    } finally {
+      setReportLoading(false);
     }
   };
 
   const openReportModal = () => {
+    const yesterday = cafeCalendarDate(-1);
+    setStartDate(yesterday);
+    setEndDate(yesterday);
+    setSalesReport(null);
     setIsReportModalOpen(true);
-    // Set default date range to current month
-    const today = new Date();
-    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    
-    setStartDate(firstDay.toISOString().split('T')[0]);
-    setEndDate(lastDay.toISOString().split('T')[0]);
+    void generateSalesReport(yesterday);
   };
 
   const closeReportModal = () => {
     setIsReportModalOpen(false);
     setSalesReport(null);
+    setReportLoading(false);
   };
 
   // Payment revenue modal functions
@@ -1309,8 +1337,8 @@ const CafeOrderSystem = () => {
               type="button"
               onClick={openReportModal}
               className="p-1.5 sm:p-2.5 bg-white text-red-600 rounded-lg hover:bg-gray-100 transition-colors shadow-md min-h-[44px] min-w-[44px] flex items-center justify-center flex-shrink-0"
-              title="Sales Report"
-              aria-label="Open sales report"
+              title="Yesterday's sales"
+              aria-label="Open yesterday's sales"
             >
               <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
@@ -1329,6 +1357,7 @@ const CafeOrderSystem = () => {
                 ? `Dine-in · ${selectedTable.table_name || selectedTable.table_code}`
                 : 'Takeaway'}
             </span>
+            <div className="flex items-center gap-2">
             {selectedTable && (
               <button
                 type="button"
@@ -1338,7 +1367,42 @@ const CafeOrderSystem = () => {
                 Switch to takeaway
               </button>
             )}
+            <button
+              type="button"
+              onClick={() => {
+                if (searchOpen) {
+                  setSearchOpen(false);
+                  setSearchTerm('');
+                } else {
+                  setSearchOpen(true);
+                }
+              }}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center ${
+                searchOpen ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              title={searchOpen ? 'Close search' : 'Search menu'}
+              aria-label={searchOpen ? 'Close search' : 'Search menu'}
+              aria-pressed={searchOpen}
+            >
+              <Search className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode(viewMode === 'favorites' ? 'all' : 'favorites')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] min-w-[44px] ${
+                viewMode === 'favorites'
+                  ? 'bg-red-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              title={viewMode === 'favorites' ? 'Show All Items' : 'Show Favorites'}
+              aria-pressed={viewMode === 'favorites'}
+              aria-label={viewMode === 'favorites' ? 'Show all items' : 'Show favorites'}
+            >
+              {viewMode === 'favorites' ? '⭐' : '☆'}
+            </button>
+            </div>
           </div>
+          {searchOpen ? (
           <div className="flex gap-2">
             <div className="relative flex-1">
               <input
@@ -1365,21 +1429,8 @@ const CafeOrderSystem = () => {
                 </button>
               )}
             </div>
-      <button
-        type="button"
-        onClick={() => setViewMode(viewMode === 'favorites' ? 'all' : 'favorites')}
-        className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors min-h-[44px] min-w-[44px] ${
-          viewMode === 'favorites'
-            ? 'bg-red-600 text-white'
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-        }`}
-        title={viewMode === 'favorites' ? 'Show All Items' : 'Show Favorites'}
-        aria-pressed={viewMode === 'favorites'}
-        aria-label={viewMode === 'favorites' ? 'Show all items' : 'Show favorites'}
-      >
-        {viewMode === 'favorites' ? '⭐' : '☆'}
-      </button>
           </div>
+          ) : null}
 
           {/* Category and View Mode Filters */}
           <div className="flex flex-wrap gap-2">
@@ -1744,6 +1795,7 @@ const CafeOrderSystem = () => {
               type="button"
               onClick={() => {
                 setSearchTerm('');
+                setSearchOpen(false);
                 setSelectedCategory(null);
                 setViewMode('all');
               }}
@@ -1782,7 +1834,18 @@ const CafeOrderSystem = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full max-h-[80vh] overflow-y-auto shadow-xl">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold text-gray-900">Sales Report</h2>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Yesterday’s sales</h2>
+                {startDate ? (
+                  <p className="text-sm text-gray-500">
+                    {new Date(`${startDate}T12:00:00`).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </p>
+                ) : null}
+              </div>
               <button
                 onClick={closeReportModal}
                 className="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded"
@@ -1792,35 +1855,9 @@ const CafeOrderSystem = () => {
               </button>
             </div>
 
-            <div className="mb-4">
-              <div className="grid grid-cols-2 gap-3 mb-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                  <input
-                    type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                    className="w-full p-2 border border-gray-300 rounded text-gray-900 bg-white"
-                  />
-                </div>
-              </div>
-              
-              <button
-                onClick={generateSalesReport}
-                className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded font-medium transition-colors"
-              >
-                Generate Report
-              </button>
-            </div>
+            {reportLoading ? (
+              <p className="py-8 text-center text-sm text-gray-500">Loading yesterday’s sales…</p>
+            ) : null}
 
             {salesReport && (
               <div className="border-t border-gray-200 pt-4">
@@ -1836,22 +1873,6 @@ const CafeOrderSystem = () => {
                     <div className="text-sm text-red-800">Total Orders</div>
                     <div className="text-lg font-bold text-red-900">{salesReport.total_orders || 0}</div>
                   </div>
-                  
-                  {salesReport.daily_sales && salesReport.daily_sales.length > 0 && (
-                    <div>
-                      <h4 className="font-medium text-gray-900 mb-2">Daily Breakdown:</h4>
-                      <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                        <div className="space-y-2">
-                          {salesReport.daily_sales.map((day: any) => (
-                            <div key={day.date} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                              <span className="text-sm text-gray-700">{new Date(day.date).toLocaleDateString()}</span>
-                              <span className="font-medium text-gray-900">₹{day.revenue}</span>
-                            </div>
-                        ))}
-                        </div>
-                      </div>
-                    </div>
-                  )}
                   
                   {salesReport.top_items && salesReport.top_items.length > 0 && (
                     <div>
